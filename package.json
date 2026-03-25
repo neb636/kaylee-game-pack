@@ -1,7 +1,7 @@
 {
-  "name": "princess-game",
+  "name": "kaylee-game-pack",
   "version": "1.0.0",
-  "description": "Princess Starlight and the Rainbow Crystal Quest",
+  "description": "Kaylee's Game Pack - a collection of games",
   "scripts": {
     "start": "serve -l 3000",
     "dev": "serve -l 3000"

@@ -3,11 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Princess Starlight and the Rainbow Crystal Quest</title>
+    <title>Kaylee's Game Pack</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <script type="module" src="js/main.js"></script>
+    <div class="stars-bg" aria-hidden="true"></div>
+
+    <header>
+        <h1 class="title">
+            <span class="title-star">&#10022;</span>
+            Kaylee's Game Pack
+            <span class="title-star">&#10022;</span>
+        </h1>
+        <p class="subtitle">Pick a game and start playing!</p>
+    </header>
+
+    <main class="game-grid">
+        <a href="games/princess-starlight/" class="game-card">
+            <div class="game-card-art princess-art">
+                <div class="art-crown">&#9819;</div>
+                <div class="art-stars">
+                    <span>&#10022;</span><span>&#9733;</span><span>&#10022;</span>
+                </div>
+                <div class="art-character">&#x1F478;</div>
+                <div class="art-ground"></div>
+            </div>
+            <div class="game-card-info">
+                <h2>Princess Starlight</h2>
+                <p>and the Rainbow Crystal Quest</p>
+                <span class="play-btn">Play &#9654;</span>
+            </div>
+        </a>
+
+        <div class="game-card coming-soon">
+            <div class="game-card-art mystery-art">
+                <div class="mystery-icon">?</div>
+            </div>
+            <div class="game-card-info">
+                <h2>Coming Soon</h2>
+                <p>A new adventure is on the way!</p>
+                <span class="play-btn disabled">Soon&hellip;</span>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>Made with &#10084; for Kaylee</p>
+    </footer>
+
+    <script>
+        // Sprinkle animated stars into the background
+        const bg = document.querySelector('.stars-bg');
+        for (let i = 0; i < 60; i++) {
+            const s = document.createElement('div');
+            s.className = 'star-dot';
+            s.style.left = Math.random() * 100 + '%';
+            s.style.top = Math.random() * 100 + '%';
+            s.style.animationDelay = (Math.random() * 4) + 's';
+            s.style.animationDuration = (2 + Math.random() * 3) + 's';
+            s.style.width = s.style.height = (2 + Math.random() * 3) + 'px';
+            bg.appendChild(s);
+        }
+    </script>
 </body>
 </html>
