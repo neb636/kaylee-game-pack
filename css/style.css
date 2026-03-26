@@ -4,6 +4,29 @@
     box-sizing: border-box;
 }
 
+#backBtn {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 100;
+    background: rgba(123, 47, 247, 0.85);
+    color: #fff;
+    text-decoration: none;
+    font-family: 'Nunito', 'Arial Rounded MT Bold', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 7px 16px;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+    transition: transform 0.15s, background 0.15s;
+}
+
+#backBtn:hover {
+    background: rgba(123, 47, 247, 1);
+    transform: scale(1.06);
+}
+
 body {
     background: #1a0a2e;
     display: flex;
