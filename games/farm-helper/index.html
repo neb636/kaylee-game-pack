@@ -21,10 +21,10 @@
   </style>
 </head>
 <body>
-  <button id="back-btn" onclick="location.href='/index.html'">🏠 Games</button>
+  <button id="back-btn" onclick="location.href='../../index.html'">🏠 Games</button>
   <div id="game-container"></div>
 
-  <script src="/node_modules/phaser/dist/phaser.min.js"></script>
+  <script src="/lib/phaser.min.js"></script>
   <script>
   // ──────────────────────────────────────────────
   //  HAPPY FARM HELPER  –  Game 6 for Kaylee
@@ -40,7 +40,7 @@
   const WORLD_W  = 1400;
   const WORLD_H  = 1000;
   const FEED_R   = 110;   // px radius to trigger feed
-  const PACK = '/packs/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack/PNG/';
+  const PACK = '../../packs/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack/PNG/';
 
   // ── helper: col-based frame list (6 frames down a column)
   function colFrames(col, cols = 8) {

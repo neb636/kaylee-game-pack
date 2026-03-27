@@ -4,19 +4,21 @@ A personalized game launcher and collection of browser-based games for Kaylee (a
 
 ## Tech Stack
 
-- **Phaser 3** for game development (loaded from `/node_modules/phaser/dist/phaser.min.js`)
-- **Howler.js** for audio (loaded from `/node_modules/howler/dist/howler.min.js`)
-- **Vanilla HTML/CSS/JS** — no build step, no bundler
-- **PWA** — `manifest.json` + `sw.js` for offline support and home screen install
-- **Static hosting** via GitHub Pages (auto-deploy from main branch)
-- **`serve`** for local dev (`npm start` → http://localhost:3000)
+- **Phaser 3** for game development (loaded from `/lib/phaser.min.js` via `public/lib/`)
+- **Howler.js** for audio (loaded from `/lib/howler.min.js` via `public/lib/`)
+- **Vite** for dev server and build (`npm run dev` → http://localhost:3000)
+- **Vanilla HTML/CSS/JS** — multi-page Vite build, no framework
+- **PWA** — `public/manifest.json` + `public/sw.js` for offline support and home screen install
+- **Static hosting** via GitHub Pages (auto-deploy from main branch via Vite build)
 
 ## Project Structure
 
 - `index.html` — Game launcher (tile grid)
-- `manifest.json` — PWA manifest
-- `sw.js` — Service worker (network-first with cache fallback)
-- `icons/` — PWA icons (icon-192.png, icon-512.png) — **TODO: add actual icons**
+- `vite.config.js` — Vite config (multi-page build, base path for GitHub Pages)
+- `public/manifest.json` — PWA manifest
+- `public/sw.js` — Service worker (network-first with cache fallback)
+- `public/icons/` — PWA icons (icon-192.png, icon-512.png) — **TODO: add actual icons**
+- `public/lib/` — Phaser & Howler copied here by `postinstall` (gitignored)
 - `css/` — Launcher styles (`launcher.css`, `style.css`)
 - `games/_template/index.html` — Starter template for new games
 - `games/<game-name>/index.html` — Each game is self-contained in its own folder
@@ -30,7 +32,7 @@ A personalized game launcher and collection of browser-based games for Kaylee (a
 Every game MUST follow these conventions:
 
 1. **Self-contained** — each game lives in `games/<game-name>/` with its own `index.html`
-2. **Back button** — include a `🏠 Games` button (top-left) linking to `/index.html`
+2. **Back button** — include a `🏠 Games` button (top-left) linking to `../../index.html` (relative path)
 3. **Font** — use Fredoka One from Google Fonts CDN for all text
 4. **Color palette** — match the launcher's pink/purple theme
 5. **Tap targets** — large, finger-friendly buttons and interactive elements
@@ -55,10 +57,10 @@ Every game MUST follow these conventions:
 
 ## PWA / Service Worker
 
-- `manifest.json` defines the installable app (name, icons, theme color)
-- `sw.js` uses network-first strategy with cache fallback for offline play
-- When adding new games, update the `CACHE_NAME` version in `sw.js` to bust the cache
-- **TODO:** Generate proper 192x192 and 512x512 icons for `icons/` folder
+- `public/manifest.json` defines the installable app (name, icons, theme color)
+- `public/sw.js` uses network-first strategy with cache fallback for offline play
+- When adding new games, update the `CACHE_NAME` version in `public/sw.js` to bust the cache
+- **TODO:** Generate proper 192x192 and 512x512 icons for `public/icons/` folder
 
 ## When Building New Games
 
@@ -67,7 +69,9 @@ Every game MUST follow these conventions:
 3. Check `games-prompts.md` for the ready-to-use build prompt
 4. Explore the asset pack in `packs/` thoroughly before coding
 5. Register the new game in the launcher config (`games/princess-starlight/js/launcher.js`)
-6. Bump `CACHE_NAME` in `sw.js` if caching matters
+6. Bump `CACHE_NAME` in `public/sw.js` if caching matters
+7. Use relative paths for all asset references (e.g., `../../packs/...`, `../../index.html`) — never absolute `/` paths in inline scripts
+8. Reference Phaser via `<script src="/lib/phaser.min.js">` and Howler via `<script src="/lib/howler.min.js">` (Vite rewrites the base path)
 
 ## When Brainstorming New Games
 

@@ -19,7 +19,7 @@
   </style>
 </head>
 <body>
-<script src="/node_modules/phaser/dist/phaser.min.js"></script>
+<script src="/lib/phaser.min.js"></script>
 <script>
 
 const PACK = '../../packs/craftpix-net-248177-scrabble-animals-game-asset-pack/png/';
@@ -111,7 +111,7 @@ class GameScene extends Phaser.Scene {
       padding: { x: 10, y: 6 },
       color: '#ffffff'
     }).setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => (window.location.href = '/index.html'));
+    backBtn.on('pointerdown', () => (window.location.href = '../../index.html'));
     backBtn.on('pointerover', () => backBtn.setAlpha(0.8));
     backBtn.on('pointerout',  () => backBtn.setAlpha(1.0));
 
@@ -390,7 +390,7 @@ class WinScene extends Phaser.Scene {
       fontFamily: 'Fredoka One', fontSize: '29px',
       backgroundColor: '#7b2fff', padding: { x: 16, y: 10 }, color: '#fff'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    homeBtn.on('pointerdown', () => (window.location.href = '/index.html'));
+    homeBtn.on('pointerdown', () => (window.location.href = '../../index.html'));
     homeBtn.on('pointerover', () => homeBtn.setAlpha(0.82));
     homeBtn.on('pointerout',  () => homeBtn.setAlpha(1));
 
@@ -399,7 +399,7 @@ class WinScene extends Phaser.Scene {
       fontFamily: 'Fredoka One', fontSize: '26px',
       backgroundColor: '#ff69b4', padding: { x: 10, y: 6 }, color: '#fff'
     }).setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => (window.location.href = '/index.html'));
+    backBtn.on('pointerdown', () => (window.location.href = '../../index.html'));
 
     // Win melody
     this.time.delayedCall(150, () => this.playWinMelody());
