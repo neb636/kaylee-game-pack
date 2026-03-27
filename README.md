@@ -1,10 +1,9 @@
 # Kaylee's Game World
 
 A personalized game launcher and collection of browser-based games built for Kaylee. Hosted on GitHub Pages so family and friends can play too.
-
 ## Play
 
-**Live:** [GitHub Pages link] (add after deploying)
+**Live:** [https://neb636.github.io/kaylee-game-pack/] 
 
 On iPad/iPhone: open the link in Safari, tap Share > Add to Home Screen to install it as an app.
 
