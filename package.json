@@ -10,5 +10,9 @@
   "license": "ISC",
   "devDependencies": {
     "serve": "^14.2.6"
+  },
+  "dependencies": {
+    "howler": "^2.2.4",
+    "phaser": "^3.90.0"
   }
 }
