@@ -1,0 +1,58 @@
+// Level 6: Robot Village
+export const level6Data = {
+    width: 2200,
+    playerStart: { x: 50, y: 440 },
+    platforms: [
+        // Village ground
+        { x: 0, y: 500, w: 600, h: 100, type: 'ground' },
+        { x: 700, y: 500, w: 500, h: 100, type: 'ground' },
+        { x: 1300, y: 500, w: 400, h: 100, type: 'ground' },
+        { x: 1800, y: 500, w: 400, h: 100, type: 'ground' },
+        // Building platforms (houses)
+        { x: 100, y: 400, w: 150, h: 20, type: 'static' },
+        { x: 350, y: 350, w: 120, h: 20, type: 'static' },
+        { x: 750, y: 380, w: 130, h: 20, type: 'static' },
+        { x: 1000, y: 340, w: 100, h: 20, type: 'static' },
+        { x: 1350, y: 400, w: 120, h: 20, type: 'static' },
+        { x: 1550, y: 350, w: 130, h: 20, type: 'static' },
+        { x: 1850, y: 380, w: 200, h: 20, type: 'static' },
+    ],
+    stars: [
+        { x: 175, y: 360 },
+        { x: 410, y: 310 },
+        { x: 550, y: 460 },
+        { x: 815, y: 340 },
+        { x: 950, y: 460 },
+        { x: 1050, y: 300 },
+        { x: 1250, y: 460 },
+        { x: 1410, y: 360 },
+        { x: 1615, y: 310 },
+        { x: 1850, y: 460 },
+        { x: 1950, y: 340 },
+        { x: 2050, y: 460 },
+    ],
+    enemies: [
+        { x: 300, y: 464, patrolMin: 200, patrolMax: 500, speed: 40 },
+        { x: 800, y: 464, patrolMin: 720, patrolMax: 1100, speed: 45 },
+        { x: 1850, y: 464, patrolMin: 1820, patrolMax: 2050, speed: 40 },
+    ],
+    npcs: [
+        { x: 500, y: 464, message: 'Go right!', opensGate: null },
+        { x: 1150, y: 464, message: 'Almost there!', opensGate: null },
+        { x: 1700, y: 464, message: 'You rock!', opensGate: null },
+    ],
+    crystal: { x: 2100, y: 450 },
+    decorations: [
+        { type: 'tree', x: 50, y: 500, color: '#228B22' },
+        { type: 'tree', x: 650, y: 500, color: '#2E8B57' },
+        { type: 'bush', x: 200, y: 500, color: '#32CD32' },
+        { type: 'bush', x: 900, y: 500, color: '#228B22' },
+        { type: 'bush', x: 1400, y: 500, color: '#32CD32' },
+        { type: 'flower', x: 120, y: 500, color: '#4169E1' },
+        { type: 'flower', x: 400, y: 500, color: '#4169E1' },
+        { type: 'flower', x: 800, y: 500, color: '#6495ED' },
+        { type: 'flower', x: 1100, y: 500, color: '#4169E1' },
+        { type: 'flower', x: 1500, y: 500, color: '#6495ED' },
+        { type: 'flower', x: 1900, y: 500, color: '#4169E1' },
+    ],
+};

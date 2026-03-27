@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Happy Farm Helper 🐄</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #4a9c48; overflow: hidden; font-family: 'Fredoka One', cursive; }
+    #game-container { width: 100vw; height: 100vh; }
+    #back-btn {
+      position: fixed; top: 12px; left: 12px; z-index: 100;
+      background: #e91e8c; color: white; border: none;
+      font-family: 'Fredoka One', cursive; font-size: 18px;
+      padding: 8px 18px; border-radius: 24px; cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+      transition: background 0.15s;
+    }
+    #back-btn:hover { background: #c0156f; }
+  </style>
+</head>
+<body>
+  <button id="back-btn" onclick="location.href='/index.html'">🏠 Games</button>
+  <div id="game-container"></div>
+
+  <script src="/node_modules/phaser/dist/phaser.min.js"></script>
+  <script>
+  // ──────────────────────────────────────────────
+  //  HAPPY FARM HELPER  –  Game 6 for Kaylee
+  //
+  //  Sprite info (from Tiled TMX analysis):
+  //    Chicken / Pig: 32×32 px frames, 8 cols × 6 rows
+  //      Each COLUMN = one animation sequence (6 frames going down rows)
+  //      In Phaser frame indices (row-major, 8 per row):
+  //        col C  →  frames C, C+8, C+16, C+24, C+32, C+40
+  //    Cow: 64×64 px frames, 8 cols × 6 rows (same layout, bigger frames)
+  // ──────────────────────────────────────────────
+
+  const WORLD_W  = 1400;
+  const WORLD_H  = 1000;
+  const FEED_R   = 110;   // px radius to trigger feed
+  const PACK = '/packs/craftpix-net-471853-top-down-farm-with-animals-pixel-art-asset-pack/PNG/';
+
+  // ── helper: col-based frame list (6 frames down a column)
+  function colFrames(col, cols = 8) {
+    return [0,1,2,3,4,5].map(row => row * cols + col);
+  }
+
+  // ──────────────────────────────────────────────
+  class GameScene extends Phaser.Scene {
+    constructor() { super('GameScene'); }
+
+    // ── PRELOAD ──────────────────────────────────
+    preload() {
+      this.load.spritesheet('chicken', PACK + 'Chicken_animation.png',
+        { frameWidth: 32, frameHeight: 32 });
+      this.load.spritesheet('pig', PACK + 'Pig_animation.png',
+        { frameWidth: 32, frameHeight: 32 });
+      this.load.spritesheet('cow', PACK + 'Cow_animation.png',
+        { frameWidth: 64, frameHeight: 64 });
+
+      // Loading bar (simple)
+      const bar = this.add.graphics();
+      this.load.on('progress', v => {
+        bar.clear();
+        bar.fillStyle(0xe91e8c, 1);
+        bar.fillRect(200, 280, 400 * v, 20);
+      });
+      this.load.on('complete', () => bar.destroy());
+      bar.fillStyle(0xdddddd, 1);
+      bar.fillRect(200, 280, 400, 20);
+    }
+
+    // ── CREATE ───────────────────────────────────
+    create() {
+      this.fedCount = 0;
+      this.gameOver = false;
+
+      this._buildFarmerTexture();
+      this._createAnimations();
+      this._buildWorld();
+      this._spawnAnimals();
+      this._spawnPlayer();
+      this._setupCamera();
+      this._setupInput();
+      this._buildUI();
+    }
+
+    // ── FARMER TEXTURE ───────────────────────────
+    _buildFarmerTexture() {
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+      // Shadow
+      g.fillStyle(0x000000, 0.18);
+      g.fillEllipse(18, 50, 28, 10);
+
+      // Legs
+      g.fillStyle(0x3f51b5, 1);
+      g.fillRoundedRect(7, 34, 10, 14, 3);
+      g.fillRoundedRect(19, 34, 10, 14, 3);
+
+      // Boots
+      g.fillStyle(0x4e342e, 1);
+      g.fillRoundedRect(5, 44, 13, 8, 3);
+      g.fillRoundedRect(18, 44, 13, 8, 3);
+
+      // Body / overalls
+      g.fillStyle(0xe91e8c, 1);
+      g.fillRoundedRect(6, 18, 24, 20, 4);
+
+      // Arms
+      g.fillStyle(0xffcc99, 1);
+      g.fillRoundedRect(0, 20, 8, 13, 3);
+      g.fillRoundedRect(28, 20, 8, 13, 3);
+
+      // Head
+      g.fillStyle(0xffcc99, 1);
+      g.fillCircle(18, 12, 11);
+
+      // Eyes
+      g.fillStyle(0x333333, 1);
+      g.fillCircle(14, 11, 2);
+      g.fillCircle(22, 11, 2);
+
+      // Smile
+      g.lineStyle(2, 0x333333, 1);
+      g.beginPath();
+      g.arc(18, 13, 4, 0.2, Math.PI - 0.2);
+      g.strokePath();
+
+      // Hat brim
+      g.fillStyle(0x9c27b0, 1);
+      g.fillRoundedRect(5, 2, 26, 6, 2);
+      // Hat top
+      g.fillRoundedRect(9, -6, 18, 10, 3);
+      // Hat band
+      g.fillStyle(0xe91e8c, 1);
+      g.fillRect(9, 1, 18, 3);
+
+      g.generateTexture('farmer', 36, 54);
+      g.destroy();
+    }
+
+    // ── ANIMATIONS ───────────────────────────────
+    _createAnimations() {
+      const fps4 = { frameRate: 4, repeat: -1 };
+      const fps8once = { frameRate: 8, repeat: 2 };
+
+      // Chicken  (col 0 = walk-front,  col 4 = idle-front visually)
+      this.anims.create({ key: 'chicken-idle',
+        frames: colFrames(0).map(f => ({ key: 'chicken', frame: f })),
+        ...fps4 });
+      this.anims.create({ key: 'chicken-happy',
+        frames: colFrames(2).map(f => ({ key: 'chicken', frame: f })),
+        ...fps8once });
+
+      // Pig  (col 0 = walk-front,  col 4 = idle)
+      this.anims.create({ key: 'pig-idle',
+        frames: colFrames(0).map(f => ({ key: 'pig', frame: f })),
+        ...fps4 });
+      this.anims.create({ key: 'pig-happy',
+        frames: colFrames(3).map(f => ({ key: 'pig', frame: f })),
+        ...fps8once });
+
+      // Cow  (col 0 = walk-front)
+      this.anims.create({ key: 'cow-idle',
+        frames: colFrames(0).map(f => ({ key: 'cow', frame: f })),
+        ...fps4 });
+      this.anims.create({ key: 'cow-happy',
+        frames: colFrames(4).map(f => ({ key: 'cow', frame: f })),
+        ...fps8once });
+    }
+
+    // ── WORLD ────────────────────────────────────
+    _buildWorld() {
+      const g = this.add.graphics();
+
+      // Base grass
+      g.fillStyle(0x5cb85c, 1);
+      g.fillRect(0, 0, WORLD_W, WORLD_H);
+
+      // Lighter grass patches
+      for (const [px, py, pw, ph] of [
+        [200, 80,  300, 200], [800, 120, 250, 160], [1100, 200, 200, 180],
+        [100, 600, 280, 200], [700, 700, 300, 200], [1200, 650, 160, 200],
+        [400, 850, 250, 120], [950, 850, 200, 130]
+      ]) {
+        g.fillStyle(0x68c068, 0.5);
+        g.fillRect(px, py, pw, ph);
+      }
+
+      // Dirt paths
+      g.fillStyle(0xc9a97e, 1);
+      // Horizontal main path
+      g.fillRect(0, WORLD_H/2 - 28, WORLD_W, 56);
+      // Vertical path
+      g.fillRect(WORLD_W/2 - 28, 0, 56, WORLD_H);
+      // Path pebbles
+      g.fillStyle(0xb8955e, 0.4);
+      for (let i = 0; i < 40; i++) {
+        const px = (i * 137) % WORLD_W;
+        const py = WORLD_H/2 - 20 + (i * 17) % 40;
+        g.fillCircle(px, py, 4 + (i%3) * 2);
+      }
+
+      // Outer fence
+      this._drawFence(g);
+
+      // Barn (top-left quadrant)
+      this._drawBarn(120, 80);
+
+      // Pond (bottom-right)
+      this._drawPond(1250, 820);
+
+      // Hay bales & flowers
+      this._drawDecor(g);
+    }
+
+    _drawFence(g) {
+      const posts = 0x8b5e3c;
+      const rail  = 0xa0744d;
+      g.lineStyle(6, rail, 1);
+      g.strokeRect(24, 24, WORLD_W - 48, WORLD_H - 48);
+      g.fillStyle(posts, 1);
+      // Top / bottom posts
+      for (let x = 24; x <= WORLD_W - 24; x += 64) {
+        g.fillRect(x - 5, 16, 10, 22);
+        g.fillRect(x - 5, WORLD_H - 38, 10, 22);
+      }
+      // Side posts
+      for (let y = 24; y <= WORLD_H - 24; y += 64) {
+        g.fillRect(16, y - 5, 22, 10);
+        g.fillRect(WORLD_W - 38, y - 5, 22, 10);
+      }
+    }
+
+    _drawBarn(bx, by) {
+      const g = this.add.graphics();
+      // Barn body
+      g.fillStyle(0xcc3333, 1);
+      g.fillRect(bx, by + 50, 180, 130);
+      // Roof
+      g.fillStyle(0x992222, 1);
+      g.fillTriangle(bx - 12, by + 52, bx + 90, by - 20, bx + 192, by + 52);
+      // Barn door
+      g.fillStyle(0x5d3a1a, 1);
+      g.fillRoundedRect(bx + 62, by + 110, 56, 70, 6);
+      // Windows
+      g.fillStyle(0xadd8e6, 1);
+      g.fillRoundedRect(bx + 14, by + 68, 32, 26, 4);
+      g.fillRoundedRect(bx + 134, by + 68, 32, 26, 4);
+      // Window panes
+      g.lineStyle(2, 0x88aabb, 1);
+      g.lineBetween(bx + 30, by + 68, bx + 30, by + 94);
+      g.lineBetween(bx + 14, by + 81, bx + 46, by + 81);
+      g.lineBetween(bx + 150, by + 68, bx + 150, by + 94);
+      g.lineBetween(bx + 134, by + 81, bx + 166, by + 81);
+      // Barn label
+      this.add.text(bx + 90, by - 26, '🏚️', { fontSize: '30px' }).setOrigin(0.5, 0.5).setDepth(2);
+    }
+
+    _drawPond(px, py) {
+      const g = this.add.graphics();
+      g.fillStyle(0x4da6d6, 1);
+      g.fillEllipse(px, py, 200, 110);
+      g.fillStyle(0x6ec0e8, 0.6);
+      g.fillEllipse(px - 30, py - 15, 90, 45);
+      g.fillStyle(0x3a8fb5, 0.4);
+      g.fillEllipse(px + 40, py + 10, 60, 30);
+      this.add.text(px, py, '🌊', { fontSize: '30px' }).setOrigin(0.5, 0.5).setDepth(2);
+      // Reeds
+      const gr = this.add.graphics();
+      gr.fillStyle(0x4a7c3f, 1);
+      [[px-70,py+30],[px+70,py+30],[px-60,py-30],[px+60,py-25]].forEach(([rx,ry]) => {
+        gr.fillRect(rx-3, ry-18, 6, 22);
+        gr.fillStyle(0x6aaa5c, 1);
+        gr.fillEllipse(rx, ry-22, 10, 16);
+        gr.fillStyle(0x4a7c3f, 1);
+      });
+    }
+
+    _drawDecor(g) {
+      // Hay bales
+      const hayPositions = [
+        [560, 180], [640, 200], [560, 250],
+        [950, 720], [1020, 740]
+      ];
+      hayPositions.forEach(([hx, hy]) => {
+        g.fillStyle(0xe0b860, 1);
+        g.fillEllipse(hx, hy, 52, 38);
+        g.fillStyle(0xc8992a, 1);
+        g.lineStyle(2, 0xc8992a, 1);
+        for (let i = -16; i <= 16; i += 8) {
+          g.lineBetween(hx + i, hy - 16, hx + i, hy + 16);
+        }
+        g.lineStyle(2, 0xc8992a, 1);
+        g.strokeEllipse(hx, hy, 52, 38);
+      });
+
+      // Flower patches
+      const flowerColors = [0xff6699, 0xffee44, 0xff8833, 0xcc44ff];
+      const flowerSpots = [
+        [350, 130], [420, 160], [380, 90], [900, 80], [960, 110], [1050, 90],
+        [150, 750], [220, 800], [180, 840], [1100, 900], [1160, 870]
+      ];
+      flowerSpots.forEach(([fx, fy], i) => {
+        g.fillStyle(0x55bb44, 1);
+        g.fillCircle(fx, fy, 7);
+        g.fillStyle(flowerColors[i % flowerColors.length], 1);
+        g.fillCircle(fx, fy - 8, 5);
+        g.fillStyle(0xffff88, 1);
+        g.fillCircle(fx, fy - 8, 2);
+      });
+
+      // Simple trees
+      [[340, 70], [900, 70], [1320, 150], [80, 400], [80, 700],
+       [1320, 450], [80, 200], [700, 950], [1000, 940]
+      ].forEach(([tx, ty]) => {
+        g.fillStyle(0x7d4e1a, 1);
+        g.fillRect(tx - 7, ty - 8, 14, 30);
+        g.fillStyle(0x2d8c3e, 1);
+        g.fillCircle(tx, ty - 22, 24);
+        g.fillStyle(0x3db550, 0.6);
+        g.fillCircle(tx - 8, ty - 30, 16);
+        g.fillCircle(tx + 10, ty - 28, 14);
+      });
+    }
+
+    // ── ANIMALS ──────────────────────────────────
+    _spawnAnimals() {
+      this.animals = [];
+
+      const defs = [
+        { type: 'chicken', x: 680,  y: 280,  food: '🌾', name: 'Clucky', scale: 2.2 },
+        { type: 'chicken', x: 1050, y: 430,  food: '🌾', name: 'Penny',  scale: 2.2 },
+        { type: 'pig',     x: 380,  y: 620,  food: '🥕', name: 'Mudsy',  scale: 2.2 },
+        { type: 'pig',     x: 1150, y: 680,  food: '🥕', name: 'Rosie',  scale: 2.2 },
+        { type: 'cow',     x: 780,  y: 800,  food: '🌿', name: 'Milky',  scale: 1.6 },
+        { type: 'cow',     x: 1100, y: 220,  food: '🌿', name: 'Daisy',  scale: 1.6 },
+      ];
+
+      defs.forEach(def => {
+        // Glow ring (shows when player is near)
+        const glow = this.add.graphics();
+        glow.lineStyle(4, 0xffee44, 0.8);
+        glow.strokeCircle(0, 0, 44);
+        glow.setPosition(def.x, def.y).setDepth(3).setVisible(false);
+
+        // Animal sprite
+        const sprite = this.add.sprite(def.x, def.y, def.type);
+        sprite.setScale(def.scale);
+        sprite.setDepth(5);
+        sprite.setInteractive({ useHandCursor: true });
+        sprite.anims.play(`${def.type}-idle`);
+
+        // Name label
+        const nameTag = this.add.text(def.x, def.y + (def.type === 'cow' ? 58 : 40), def.name, {
+          fontFamily: 'Fredoka One', fontSize: '16px',
+          color: '#fff', stroke: '#9c27b0', strokeThickness: 3,
+          backgroundColor: '#e91e8c44', padding: { x: 6, y: 2 }
+        }).setOrigin(0.5, 0).setDepth(6);
+
+        // Speech bubble
+        const bubble = this._makeBubble(def.x, def.y - (def.type === 'cow' ? 65 : 48), def.food);
+
+        const animal = { ...def, sprite, bubble, glow, nameTag, fed: false };
+
+        sprite.on('pointerdown', () => this._tryFeed(animal));
+
+        this.animals.push(animal);
+      });
+    }
+
+    _makeBubble(bx, by, emoji) {
+      const c = this.add.container(bx, by).setDepth(9);
+      const bg = this.add.graphics();
+      bg.fillStyle(0xffffff, 0.95);
+      bg.fillRoundedRect(-30, -30, 60, 44, 14);
+      bg.fillStyle(0xffffff, 0.95);
+      bg.fillTriangle(-7, 14, 7, 14, 0, 26);
+      bg.lineStyle(2.5, 0xe91e8c, 1);
+      bg.strokeRoundedRect(-30, -30, 60, 44, 14);
+      const txt = this.add.text(0, -8, emoji, { fontSize: '24px' }).setOrigin(0.5, 0.5);
+      c.add([bg, txt]);
+
+      // Gentle float
+      this.tweens.add({
+        targets: c, y: by - 6,
+        yoyo: true, repeat: -1,
+        duration: 1300, ease: 'Sine.easeInOut'
+      });
+      return c;
+    }
+
+    // ── PLAYER ───────────────────────────────────
+    _spawnPlayer() {
+      // Start at centre of world
+      this.player = this.physics.add.sprite(WORLD_W / 2, WORLD_H / 2, 'farmer');
+      this.player.setCollideWorldBounds(true);
+      this.player.setDepth(8);
+      this.player.setScale(1.3);
+      // Tighten physics body
+      this.player.body.setSize(22, 30);
+      this.player.body.setOffset(7, 20);
+
+      // Small "YOU" arrow above player
+      this.playerLabel = this.add.text(0, 0, '⬇ You', {
+        fontFamily: 'Fredoka One', fontSize: '14px',
+        color: '#fff', stroke: '#9c27b0', strokeThickness: 3
+      }).setOrigin(0.5, 1).setDepth(9);
+    }
+
+    // ── CAMERA ───────────────────────────────────
+    _setupCamera() {
+      this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
+      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+    }
+
+    // ── INPUT ────────────────────────────────────
+    _setupInput() {
+      this.cursors = this.input.keyboard.createCursorKeys();
+      this.wasd = this.input.keyboard.addKeys({
+        up: Phaser.Input.Keyboard.KeyCodes.W,
+        down: Phaser.Input.Keyboard.KeyCodes.S,
+        left: Phaser.Input.Keyboard.KeyCodes.A,
+        right: Phaser.Input.Keyboard.KeyCodes.D,
+      });
+      this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    }
+
+    // ── UI ───────────────────────────────────────
+    _buildUI() {
+      // Title
+      this.add.text(400, 18, '🌸 Happy Farm Helper 🌸', {
+        fontFamily: 'Fredoka One', fontSize: '22px',
+        color: '#fff', stroke: '#9c27b0', strokeThickness: 4
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(20);
+
+      // Counter
+      this.counterText = this.add.text(400, 558, '🌟 Animals fed: 0 / 6', {
+        fontFamily: 'Fredoka One', fontSize: '20px',
+        color: '#fff', stroke: '#9c27b0', strokeThickness: 4,
+        backgroundColor: '#e91e8ccc', padding: { x: 14, y: 6 }
+      }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(20);
+
+      // Hint
+      this.hintText = this.add.text(400, 590, '🚶 Walk to animals and press SPACE or tap them to feed!', {
+        fontFamily: 'Fredoka One', fontSize: '15px',
+        color: '#ffe', stroke: '#9c27b0', strokeThickness: 3,
+        backgroundColor: '#9c27b0cc', padding: { x: 10, y: 4 }
+      }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(20);
+
+      // Mini-map background
+      const mmBg = this.add.graphics();
+      mmBg.fillStyle(0x000000, 0.4);
+      mmBg.fillRoundedRect(6, 50, 84, 64, 6);
+      mmBg.setScrollFactor(0).setDepth(19);
+
+      // Mini-map label
+      this.add.text(48, 52, 'MAP', {
+        fontFamily: 'Fredoka One', fontSize: '11px', color: '#fff'
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(21);
+
+      this.minimap = { bg: mmBg };
+    }
+
+    // ── FEEDING ──────────────────────────────────
+    _tryFeed(animal) {
+      if (animal.fed || this.gameOver) return;
+      const dist = Phaser.Math.Distance.Between(
+        this.player.x, this.player.y, animal.x, animal.y
+      );
+      if (dist > FEED_R) {
+        this._flashHint(`Walk closer to ${animal.name}! 🐾`);
+        return;
+      }
+      this._doFeed(animal);
+    }
+
+    _doFeed(animal) {
+      if (animal.fed) return;
+      animal.fed = true;
+
+      // Happy animation → return to idle
+      animal.sprite.anims.play(`${animal.type}-happy`);
+      animal.sprite.once('animationcomplete', () => {
+        if (!animal.fed) return; // safety
+        animal.sprite.anims.play(`${animal.type}-idle`);
+      });
+
+      // Fade & shrink speech bubble
+      this.tweens.add({
+        targets: animal.bubble, alpha: 0, scaleX: 0, scaleY: 0,
+        duration: 350, onComplete: () => animal.bubble.destroy()
+      });
+
+      // Hide glow
+      animal.glow.setVisible(false);
+
+      // Bounce
+      this.tweens.add({
+        targets: animal.sprite,
+        y: animal.y - 22, yoyo: true,
+        repeat: 2, duration: 160, ease: 'Power2'
+      });
+
+      // Scale pulse
+      const baseScale = animal.scale;
+      this.tweens.add({
+        targets: animal.sprite,
+        scaleX: baseScale * 1.3, scaleY: baseScale * 1.3,
+        yoyo: true, duration: 200, repeat: 1
+      });
+
+      // Floating hearts
+      this._emitHearts(animal.x, animal.y);
+
+      // Floating "Yum!" text
+      const yum = this.add.text(animal.x, animal.y - 70, `${animal.food} Yum!`, {
+        fontFamily: 'Fredoka One', fontSize: '26px',
+        color: '#ff4488', stroke: '#fff', strokeThickness: 3
+      }).setOrigin(0.5, 0.5).setDepth(15);
+      this.tweens.add({
+        targets: yum, y: animal.y - 130, alpha: 0,
+        duration: 1300, ease: 'Power2',
+        onComplete: () => yum.destroy()
+      });
+
+      // Update counter
+      this.fedCount++;
+      this.counterText.setText(`🌟 Animals fed: ${this.fedCount} / 6`);
+
+      if (this.fedCount >= 6) {
+        this.gameOver = true;
+        this.time.delayedCall(900, () => this._showWin());
+      }
+    }
+
+    _emitHearts(hx, hy) {
+      for (let i = 0; i < 10; i++) {
+        const h = this.add.text(hx, hy, '❤️', {
+          fontSize: `${14 + Math.random() * 18}px`
+        }).setOrigin(0.5, 0.5).setDepth(14);
+        this.tweens.add({
+          targets: h,
+          x: hx + Phaser.Math.Between(-70, 70),
+          y: hy - Phaser.Math.Between(60, 130),
+          alpha: 0, duration: Phaser.Math.Between(900, 1600),
+          delay: i * 70, ease: 'Power2',
+          onComplete: () => h.destroy()
+        });
+      }
+    }
+
+    _flashHint(msg) {
+      this.hintText.setText(msg);
+      this.hintText.setStyle({ backgroundColor: '#ff4488cc' });
+      this.time.delayedCall(2200, () => {
+        this.hintText.setText('🚶 Walk to animals and press SPACE or tap them to feed!');
+        this.hintText.setStyle({ backgroundColor: '#9c27b0cc' });
+      });
+    }
+
+    // ── WIN SCREEN ───────────────────────────────
+    _showWin() {
+      // Dim overlay
+      const ov = this.add.graphics();
+      ov.fillStyle(0x000000, 0.55);
+      ov.fillRect(0, 0, 800, 600);
+      ov.setScrollFactor(0).setDepth(50);
+
+      // Panel
+      const panel = this.add.graphics();
+      panel.fillStyle(0xfff0fb, 1);
+      panel.fillRoundedRect(90, 100, 620, 400, 32);
+      panel.lineStyle(6, 0xe91e8c, 1);
+      panel.strokeRoundedRect(90, 100, 620, 400, 32);
+      panel.setScrollFactor(0).setDepth(51);
+
+      // Big emoji
+      this.add.text(400, 130, '🎉🌟🎉', { fontSize: '54px' })
+        .setOrigin(0.5, 0).setScrollFactor(0).setDepth(52);
+
+      // Main text
+      this.add.text(400, 210, 'The animals are\nall happy!', {
+        fontFamily: 'Fredoka One', fontSize: '44px',
+        color: '#9c27b0', align: 'center', lineSpacing: 6
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(52);
+
+      // Sub text
+      this.add.text(400, 340, 'Thanks, Kaylee! You\'re amazing! 🌸', {
+        fontFamily: 'Fredoka One', fontSize: '24px', color: '#e91e8c'
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(52);
+
+      // Play again button
+      const btnG = this.add.graphics();
+      btnG.fillStyle(0xe91e8c, 1);
+      btnG.fillRoundedRect(245, 400, 310, 66, 22);
+      btnG.setScrollFactor(0).setDepth(52);
+
+      const btnHit = this.add.zone(400, 433, 310, 66)
+        .setInteractive({ useHandCursor: true })
+        .setScrollFactor(0).setDepth(53);
+      btnHit.on('pointerover', () => { btnG.clear(); btnG.fillStyle(0xc0156f,1); btnG.fillRoundedRect(245,400,310,66,22); });
+      btnHit.on('pointerout',  () => { btnG.clear(); btnG.fillStyle(0xe91e8c,1); btnG.fillRoundedRect(245,400,310,66,22); });
+      btnHit.on('pointerdown', () => this.scene.restart());
+
+      this.add.text(400, 433, '🔄 Play Again!', {
+        fontFamily: 'Fredoka One', fontSize: '28px', color: '#fff'
+      }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(54);
+
+      this._launchConfetti();
+    }
+
+    _launchConfetti() {
+      const palette = [0xff4488, 0x9c27b0, 0xffcc00, 0x00bcd4, 0x4caf50, 0xff9800, 0xff6e40];
+      for (let i = 0; i < 70; i++) {
+        const g = this.add.graphics();
+        g.fillStyle(palette[i % palette.length], 1);
+        g.fillRect(0, 0, 10 + (i%3)*4, 10 + (i%2)*4);
+        const sx = Phaser.Math.Between(90, 710);
+        g.setPosition(sx, -20).setScrollFactor(0).setDepth(60);
+        this.tweens.add({
+          targets: g,
+          y: 650,
+          x: sx + Phaser.Math.Between(-120, 120),
+          angle: Phaser.Math.Between(200, 800),
+          delay: Phaser.Math.Between(0, 2500),
+          duration: Phaser.Math.Between(2000, 4500),
+          ease: 'Power1',
+          onComplete: () => g.destroy()
+        });
+      }
+    }
+
+    // ── UPDATE ───────────────────────────────────
+    update() {
+      if (this.gameOver) {
+        this.player.setVelocity(0, 0);
+        return;
+      }
+
+      // ── Movement ──
+      const speed = 160;
+      let vx = 0, vy = 0;
+
+      if (this.cursors.left.isDown  || this.wasd.left.isDown)  vx = -speed;
+      else if (this.cursors.right.isDown || this.wasd.right.isDown) vx =  speed;
+
+      if (this.cursors.up.isDown    || this.wasd.up.isDown)    vy = -speed;
+      else if (this.cursors.down.isDown  || this.wasd.down.isDown)  vy =  speed;
+
+      this.player.setVelocity(vx, vy);
+
+      // Flip player sprite when moving left/right
+      if (vx < 0) this.player.setFlipX(true);
+      else if (vx > 0) this.player.setFlipX(false);
+
+      // ── Player label follows player ──
+      this.playerLabel.setPosition(this.player.x, this.player.y - 42);
+
+      // ── Space key: feed nearest hungry animal ──
+      if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+        let closest = null, minD = Infinity;
+        this.animals.forEach(a => {
+          if (a.fed) return;
+          const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, a.x, a.y);
+          if (d < minD) { minD = d; closest = a; }
+        });
+        if (closest) this._tryFeed(closest);
+      }
+
+      // ── Proximity glow & scale for all animals ──
+      this.animals.forEach(a => {
+        if (a.fed) { a.glow.setVisible(false); return; }
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, a.x, a.y);
+        const near = d < FEED_R;
+        a.glow.setVisible(near);
+        if (near) {
+          // Pulse the glow ring
+          a.sprite.setTint(0xffffcc);
+          a.sprite.setScale(a.scale * 1.08);
+        } else {
+          a.sprite.clearTint();
+          a.sprite.setScale(a.scale);
+        }
+      });
+
+      // ── Mini-map dots ──
+      // (drawn fresh each frame on the mmBg, cheap since it's small)
+      // Using a separate graphics object for minimap dots
+      if (!this._mmDots) {
+        this._mmDots = this.add.graphics().setScrollFactor(0).setDepth(22);
+      }
+      const mm = this._mmDots;
+      mm.clear();
+      const scaleX = 76 / WORLD_W;
+      const scaleY = 54 / WORLD_H;
+      const ox = 10, oy = 62;
+      // Terrain
+      mm.fillStyle(0x5cb85c, 1); mm.fillRect(ox, oy, 76, 54);
+      mm.fillStyle(0xc9a97e, 1);
+      mm.fillRect(ox, oy + WORLD_H/2*scaleY - 2, 76, 4);
+      mm.fillRect(ox + WORLD_W/2*scaleX - 2, oy, 4, 54);
+      // Animals
+      this.animals.forEach(a => {
+        mm.fillStyle(a.fed ? 0x44dd44 : 0xffee00, 1);
+        mm.fillCircle(ox + a.x * scaleX, oy + a.y * scaleY, 3);
+      });
+      // Player dot
+      mm.fillStyle(0xff4488, 1);
+      mm.fillCircle(ox + this.player.x * scaleX, oy + this.player.y * scaleY, 3.5);
+    }
+  }
+
+  // ──────────────────────────────────────────────
+  const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 600,
+    parent: 'game-container',
+    backgroundColor: '#5cb85c',
+    physics: {
+      default: 'arcade',
+      arcade: { gravity: { y: 0 }, debug: false }
+    },
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    scene: [GameScene]
+  };
+
+  new Phaser.Game(config);
+  </script>
+</body>
+</html>
