@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animal Hide & Seek — Kaylee's Game World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: 'Fredoka One', cursive;
+    }
+    #back-btn {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 100;
+      background: linear-gradient(135deg, #834d9b, #d04ed6);
+      color: white;
+      font-family: 'Fredoka One', cursive;
+      font-size: 18px;
+      border: none;
+      border-radius: 24px;
+      padding: 10px 20px;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 16px rgba(131,77,155,0.5);
+      transition: transform 0.15s;
+    }
+    #back-btn:hover { transform: scale(1.07); }
+    canvas {
+      display: block;
+      border-radius: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    }
+  </style>
+</head>
+<body>
+  <a id="back-btn" href="/index.html">🏠 Games</a>
+  <script src="/lib/phaser.min.js"></script>
+  <script>
+  // ── Asset base path ─────────────────────────────────────────────────────────
+  const PACK = '../../packs/free-top-down-hunt-animals-pixel-sprite-pack/PNG/Without_shadow/';
+
+  // ── Animal definitions ───────────────────────────────────────────────────────
+  const ANIMAL_DEFS = [
+    {
+      key: 'fox',
+      name: 'Fox',
+      emoji: '🦊',
+      idleImg:  PACK + 'Fox/Fox_Idle.png',
+      walkImg:  PACK + 'Fox/Fox_walk.png',
+      idleFrames: [0,1,2,3],
+      walkFrames: [0,1,2,3,4,5],
+      // position inside the scene (center of sprite)
+      x: 128, y: 238, scale: 3,
+      // covering bush: center-x, center-y, half-width, half-height
+      bushX: 128, bushY: 273, bushW: 105, bushH: 45,
+    },
+    {
+      key: 'deer',
+      name: 'Deer',
+      emoji: '🦌',
+      idleImg:  PACK + 'Deer/Deer_Idle.png',
+      walkImg:  PACK + 'Deer/Deer_Walk.png',
+      idleFrames: [0,1,2,3],
+      walkFrames: [0,1,2,3,4,5],
+      x: 352, y: 192, scale: 3,
+      bushX: 352, bushY: 228, bushW: 110, bushH: 48,
+    },
+    {
+      key: 'grouse',
+      name: 'Black Grouse',
+      emoji: '🐦',
+      idleImg:  PACK + 'Black_grouse/Black_grouse_Idle.png',
+      walkImg:  PACK + 'Black_grouse/Black_grouse_Walk.png',
+      idleFrames: [0,1,2,3],
+      walkFrames: [0,1,2,3,4,5],
+      x: 568, y: 228, scale: 3,
+      bushX: 568, bushY: 264, bushW: 100, bushH: 44,
+    },
+    {
+      key: 'boar',
+      name: 'Boar',
+      emoji: '🐗',
+      idleImg:  PACK + 'Boar/Boar_Idle.png',
+      walkImg:  PACK + 'Boar/Boar_Walk.png',
+      idleFrames: [0,1,2,3],
+      walkFrames: [0,1,2,3,4,5],
+      x: 192, y: 438, scale: 3,
+      bushX: 192, bushY: 470, bushW: 110, bushH: 42,
+    },
+    {
+      key: 'hare',
+      name: 'Hare',
+      emoji: '🐰',
+      idleImg:  PACK + 'Hare/Hare_Idle.png',
+      walkImg:  PACK + 'Hare/Hare_Walk.png',
+      idleFrames: [0,1,2,3],
+      walkFrames: [0,1,2,3,4],
+      x: 532, y: 452, scale: 3,
+      bushX: 532, bushY: 484, bushW: 108, bushH: 44,
+    },
+  ];
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Scene
+  // ═══════════════════════════════════════════════════════════════════════════
+  class HideAndSeekScene extends Phaser.Scene {
+    constructor() {
+      super({ key: 'HideAndSeekScene' });
+      this.foundCount   = 0;
+      this.totalAnimals = ANIMAL_DEFS.length;
+      this.timerSecs    = 0;
+      this.timerText    = null;
+      this.timerRunning = true;
+      this.checkmarks   = [];
+      this.sprites      = [];
+    }
+
+    // ── preload ──────────────────────────────────────────────────────────────
+    preload() {
+      // Loading bar background
+      const { width, height } = this.scale;
+      const bar = this.add.graphics();
+      bar.fillStyle(0x834d9b);
+      bar.fillRoundedRect(width/2 - 160, height/2 - 20, 320, 40, 8);
+
+      const fill = this.add.graphics();
+      const loadText = this.add.text(width/2, height/2 - 50, 'Loading…', {
+        fontFamily: 'Fredoka One',
+        fontSize: '26px',
+        color: '#ffffff',
+      }).setOrigin(0.5);
+
+      this.load.on('progress', (v) => {
+        fill.clear();
+        fill.fillStyle(0xd04ed6);
+        fill.fillRoundedRect(width/2 - 158, height/2 - 18, 316 * v, 36, 6);
+      });
+      this.load.on('complete', () => { bar.destroy(); fill.destroy(); loadText.destroy(); });
+
+      // Load sprite sheets
+      const fw = 32, fh = 32;
+      for (const a of ANIMAL_DEFS) {
+        this.load.spritesheet(a.key + '_idle', a.idleImg, { frameWidth: fw, frameHeight: fh });
+        this.load.spritesheet(a.key + '_walk', a.walkImg, { frameWidth: fw, frameHeight: fh });
+      }
+    }
+
+    // ── create ───────────────────────────────────────────────────────────────
+    create() {
+      this.drawBackground();
+      this.createAnimations();
+      this.drawBackTrees();
+      this.placeAnimals();
+      this.drawCoveringFoliage();
+      this.createPanel();
+      this.createTimer();
+    }
+
+    // ── Background ───────────────────────────────────────────────────────────
+    drawBackground() {
+      const g = this.add.graphics().setDepth(0);
+      const SW = 672; // scene width
+
+      // Sky
+      g.fillGradientStyle(0x4a9fd4, 0x4a9fd4, 0xa8daf5, 0xa8daf5, 1);
+      g.fillRect(0, 0, SW, 220);
+
+      // Ground
+      g.fillGradientStyle(0x5dbb63, 0x5dbb63, 0x388e3c, 0x388e3c, 1);
+      g.fillRect(0, 210, SW, 390);
+
+      // Horizon blend strip
+      g.fillStyle(0x81c784, 0.55);
+      g.fillRect(0, 200, SW, 30);
+
+      // Winding dirt path
+      g.fillStyle(0xc8a96e);
+      g.fillRect(260, 330, 100, 270);
+      g.fillEllipse(310, 330, 100, 50);
+
+      // Pond (bottom right area)
+      g.fillStyle(0x5ab3e8);
+      g.fillEllipse(590, 510, 140, 68);
+      g.fillStyle(0x7ecfff, 0.45);
+      g.fillEllipse(586, 502, 100, 46);
+      // Pond ripple
+      g.lineStyle(1.5, 0xffffff, 0.35);
+      g.strokeEllipse(590, 510, 120, 54);
+
+      // Scattered flowers
+      const flowerData = [
+        [72,  318, 0xff4081], [165, 355, 0xffeb3b], [440, 308, 0xff9800],
+        [610, 318, 0xe040fb], [88,  480, 0xffffff], [378, 492, 0xff4081],
+        [628, 440, 0xffeb3b], [500, 370, 0x69f0ae], [230, 500, 0xe040fb],
+        [305, 275, 0xffffff], [458, 460, 0xff4081], [650, 388, 0xff9800],
+      ];
+      for (const [fx, fy, col] of flowerData) {
+        g.fillStyle(0x388e3c);
+        g.fillRect(fx - 1, fy, 2, 10);
+        g.fillStyle(col);
+        g.fillCircle(fx, fy - 2, 5);
+      }
+
+      // Grass tufts
+      g.fillStyle(0x2e7d32);
+      const tufts = [
+        [415,295],[82,392],[558,448],[308,535],[478,385],[640,355],[155,490]
+      ];
+      for (const [tx, ty] of tufts) {
+        g.fillTriangle(tx-7, ty+8, tx,   ty-9, tx+7,  ty+8);
+        g.fillTriangle(tx,   ty+8, tx+7, ty-8, tx+14, ty+8);
+      }
+    }
+
+    // ── Trees behind animals ─────────────────────────────────────────────────
+    drawBackTrees() {
+      const g = this.add.graphics().setDepth(2);
+      // Tree definitions: [cx, cy, radius, trunkH, darkColor, lightColor]
+      const trees = [
+        [128, 196, 62, 38, 0x1b5e20, 0x388e3c],   // Fox tree (left)
+        [352, 157, 70, 42, 0x2e7d32, 0x43a047],   // Deer tree (center)
+        [568, 190, 60, 38, 0x1b5e20, 0x2e7d32],   // Grouse tree (right)
+        [430, 368, 52, 30, 0x33691e, 0x558b2f],   // Mid-scene tree
+      ];
+
+      for (const [cx, cy, r, trunkH, dark, light] of trees) {
+        // Trunk
+        g.fillStyle(0x6d4c41);
+        g.fillRect(cx - 7, cy, 14, trunkH);
+        // Crown shadow
+        g.fillStyle(dark);
+        g.fillCircle(cx, cy, r);
+        // Crown mid highlight
+        g.fillStyle(light);
+        g.fillCircle(cx - r * 0.28, cy - r * 0.18, r * 0.65);
+        // Crown bright spot
+        g.fillStyle(0x81c784, 0.6);
+        g.fillCircle(cx - r * 0.4, cy - r * 0.3, r * 0.3);
+      }
+    }
+
+    // ── Animations ───────────────────────────────────────────────────────────
+    createAnimations() {
+      for (const a of ANIMAL_DEFS) {
+        // Idle loop
+        this.anims.create({
+          key: a.key + '_idle_anim',
+          frames: a.idleFrames.map(f => ({ key: a.key + '_idle', frame: f })),
+          frameRate: 5,
+          repeat: -1,
+        });
+        // Walk (plays once then animal fades)
+        this.anims.create({
+          key: a.key + '_walk_anim',
+          frames: a.walkFrames.map(f => ({ key: a.key + '_walk', frame: f })),
+          frameRate: 8,
+          repeat: 3,
+        });
+      }
+    }
+
+    // ── Place animals ────────────────────────────────────────────────────────
+    placeAnimals() {
+      for (let i = 0; i < ANIMAL_DEFS.length; i++) {
+        const a  = ANIMAL_DEFS[i];
+        const sp = this.add.sprite(a.x, a.y, a.key + '_idle', 0);
+        sp.setScale(a.scale);
+        sp.setDepth(4);
+        sp.play(a.key + '_idle_anim');
+
+        sp.setInteractive({ useHandCursor: true });
+
+        // Gentle hover wobble
+        sp.on('pointerover', () => {
+          if (sp._found) return;
+          this.tweens.add({
+            targets: sp, scaleX: a.scale * 1.12, scaleY: a.scale * 1.12,
+            duration: 120, ease: 'Sine.Out',
+          });
+        });
+        sp.on('pointerout', () => {
+          if (sp._found) return;
+          this.tweens.add({
+            targets: sp, scaleX: a.scale, scaleY: a.scale,
+            duration: 120, ease: 'Sine.Out',
+          });
+        });
+
+        sp.on('pointerdown', () => this.onAnimalFound(sp, a, i));
+
+        sp._found = false;
+        this.sprites.push(sp);
+      }
+    }
+
+    // ── Foliage drawn in front of animals ────────────────────────────────────
+    drawCoveringFoliage() {
+      const g = this.add.graphics().setDepth(5);
+
+      for (const a of ANIMAL_DEFS) {
+        this.drawBushPatch(g, a.bushX, a.bushY, a.bushW, a.bushH);
+      }
+
+      // A few extra decorative bushes not covering animals
+      const extra = [
+        [60,  390, 90, 38],
+        [620, 390, 85, 36],
+        [300, 420, 78, 32],
+        [465, 488, 80, 34],
+      ];
+      for (const [bx, by, bw, bh] of extra) {
+        this.drawBushPatch(g, bx, by, bw, bh);
+      }
+    }
+
+    drawBushPatch(g, cx, cy, w, h) {
+      // Main body
+      g.fillStyle(0x2e7d32);
+      g.fillEllipse(cx, cy, w, h);
+      // Left highlight cluster
+      g.fillStyle(0x43a047);
+      g.fillCircle(cx - w * 0.22, cy - h * 0.15, w * 0.19);
+      // Right highlight cluster
+      g.fillStyle(0x388e3c);
+      g.fillCircle(cx + w * 0.18, cy - h * 0.20, w * 0.16);
+      // Center top highlight
+      g.fillStyle(0x66bb6a, 0.7);
+      g.fillCircle(cx, cy - h * 0.22, w * 0.13);
+      // Dark edges
+      g.fillStyle(0x1b5e20, 0.5);
+      g.fillCircle(cx + w * 0.33, cy + h * 0.12, w * 0.13);
+      g.fillCircle(cx - w * 0.30, cy + h * 0.10, w * 0.11);
+    }
+
+    // ── Side panel ───────────────────────────────────────────────────────────
+    createPanel() {
+      const PX = 672;  // panel start x
+      const PW = 228;  // panel width
+      const CX = PX + PW / 2; // panel center x = 786
+
+      // Panel gradient background
+      const pg = this.add.graphics().setDepth(10);
+      pg.fillGradientStyle(0x4a0070, 0x4a0070, 0x9c27b0, 0x9c27b0, 1);
+      pg.fillRect(PX, 0, PW, 600);
+
+      // Soft overlay circles for decoration
+      pg.fillStyle(0xffffff, 0.06);
+      pg.fillCircle(PX + 170, 60, 90);
+      pg.fillCircle(PX + 30, 540, 70);
+
+      // ── Title ────────────────────────────────────────────────────────────
+      this.add.text(CX, 32, '🔍', { fontSize: '30px' }).setDepth(11).setOrigin(0.5);
+      this.add.text(CX, 68, 'Find the\nAnimals!', {
+        fontFamily: 'Fredoka One', fontSize: '21px',
+        color: '#ffffff', align: 'center', lineSpacing: 2,
+      }).setDepth(11).setOrigin(0.5);
+
+      // Divider
+      const dg = this.add.graphics().setDepth(11);
+      dg.lineStyle(2, 0xffffff, 0.35);
+      dg.lineBetween(PX + 10, 106, PX + PW - 10, 106);
+
+      // ── Animal list ───────────────────────────────────────────────────────
+      for (let i = 0; i < ANIMAL_DEFS.length; i++) {
+        const a   = ANIMAL_DEFS[i];
+        const cardY = 122 + i * 84;
+
+        // Card background
+        const cg = this.add.graphics().setDepth(11);
+        cg.fillStyle(0xffffff, 0.12);
+        cg.fillRoundedRect(PX + 8, cardY - 28, PW - 16, 58, 10);
+
+        // Emoji
+        this.add.text(PX + 18, cardY, a.emoji, { fontSize: '28px' })
+          .setDepth(12).setOrigin(0, 0.5);
+
+        // Name
+        this.add.text(PX + 56, cardY, a.name, {
+          fontFamily: 'Fredoka One', fontSize: '17px', color: '#ffffff',
+        }).setDepth(12).setOrigin(0, 0.5);
+
+        // Checkmark background circle
+        const checkBgGfx = this.add.graphics().setDepth(12);
+        checkBgGfx.fillStyle(0xffffff, 0.25);
+        checkBgGfx.fillCircle(PX + PW - 22, cardY, 17);
+
+        // Checkmark text (○ = not found, ✓ = found)
+        const checkTxt = this.add.text(PX + PW - 22, cardY, '○', {
+          fontFamily: 'Fredoka One', fontSize: '20px', color: '#dddddd',
+        }).setDepth(13).setOrigin(0.5);
+
+        this.checkmarks.push({ txt: checkTxt, bgGfx: checkBgGfx, cardY });
+      }
+
+      // ── Progress bar ─────────────────────────────────────────────────────
+      const progY = 548;
+      const progBg = this.add.graphics().setDepth(11);
+      progBg.fillStyle(0x000000, 0.25);
+      progBg.fillRoundedRect(PX + 8, progY - 10, PW - 16, 22, 8);
+
+      this.progressBar = this.add.graphics().setDepth(12);
+      this.updateProgressBar();
+
+      this.progressLabel = this.add.text(CX, progY + 20, '0 / 5 found', {
+        fontFamily: 'Fredoka One', fontSize: '15px', color: '#ffccff',
+      }).setDepth(12).setOrigin(0.5);
+
+      // ── Timer ─────────────────────────────────────────────────────────────
+      this.add.text(CX, 574, '⏱ 0:00', {
+        fontFamily: 'Fredoka One', fontSize: '0px', // invisible placeholder
+      });
+      this.timerText = this.add.text(CX, 584, '⏱ 0:00', {
+        fontFamily: 'Fredoka One', fontSize: '19px', color: '#e1bee7',
+      }).setDepth(12).setOrigin(0.5);
+    }
+
+    updateProgressBar() {
+      const PX = 672, PW = 228;
+      const progY = 548;
+      this.progressBar.clear();
+      const ratio = this.foundCount / this.totalAnimals;
+      if (ratio > 0) {
+        this.progressBar.fillStyle(0xce93d8);
+        this.progressBar.fillRoundedRect(PX + 10, progY - 8, (PW - 20) * ratio, 18, 6);
+      }
+    }
+
+    // ── Timer ────────────────────────────────────────────────────────────────
+    createTimer() {
+      this.time.addEvent({
+        delay: 1000,
+        loop: true,
+        callback: () => {
+          if (!this.timerRunning) return;
+          this.timerSecs++;
+          const m = Math.floor(this.timerSecs / 60);
+          const s = this.timerSecs % 60;
+          this.timerText.setText(`⏱ ${m}:${s.toString().padStart(2, '0')}`);
+        },
+      });
+    }
+
+    // ── Animal found handler ─────────────────────────────────────────────────
+    onAnimalFound(sprite, def, index) {
+      if (sprite._found) return;
+      sprite._found = true;
+      sprite.disableInteractive();
+
+      // Switch to walk animation
+      sprite.play(def.key + '_walk_anim');
+
+      // Pop up tween
+      const origY = sprite.y;
+      this.tweens.add({
+        targets: sprite,
+        y:      origY - 38,
+        scaleX: def.scale * 1.55,
+        scaleY: def.scale * 1.55,
+        duration: 260,
+        ease: 'Back.Out',
+        onComplete: () => {
+          this.time.delayedCall(380, () => {
+            this.tweens.add({
+              targets: sprite,
+              y:     origY,
+              scaleX: def.scale,
+              scaleY: def.scale,
+              duration: 220,
+              ease: 'Sine.InOut',
+              onComplete: () => {
+                // Fade out after short delay
+                this.tweens.add({
+                  targets: sprite,
+                  alpha:   0,
+                  y:       origY - 20,
+                  scaleX:  def.scale * 0.4,
+                  scaleY:  def.scale * 0.4,
+                  delay:   300,
+                  duration: 400,
+                  ease:    'Power2.In',
+                });
+              },
+            });
+          });
+        },
+      });
+
+      // Star burst
+      this.spawnStars(sprite.x, sprite.y);
+
+      // Cheer sound
+      this.playCheer();
+
+      // Update checkmark
+      const ck = this.checkmarks[index];
+      ck.bgGfx.clear();
+      ck.bgGfx.fillStyle(0x4caf50, 0.9);
+      ck.bgGfx.fillCircle(672 + 228 - 22, ck.cardY, 17);
+      ck.txt.setText('✓').setColor('#ffffff');
+      this.tweens.add({
+        targets: ck.txt, scaleX: 1.6, scaleY: 1.6,
+        duration: 180, yoyo: true, ease: 'Back.Out',
+      });
+
+      // Float-up name popup
+      const popup = this.add.text(sprite.x, sprite.y - 60,
+        `${def.emoji} Found ${def.name}!`, {
+          fontFamily: 'Fredoka One', fontSize: '21px',
+          color: '#ffd700', stroke: '#2e003e', strokeThickness: 4,
+        }).setDepth(20).setOrigin(0.5);
+      this.tweens.add({
+        targets: popup, y: sprite.y - 115, alpha: 0,
+        duration: 1400, ease: 'Sine.Out',
+        onComplete: () => popup.destroy(),
+      });
+
+      // Progress
+      this.foundCount++;
+      this.updateProgressBar();
+      this.progressLabel.setText(`${this.foundCount} / ${this.totalAnimals} found`);
+
+      if (this.foundCount >= this.totalAnimals) {
+        this.timerRunning = false;
+        this.time.delayedCall(900, () => this.showWinScreen());
+      }
+    }
+
+    // ── Star burst effect ────────────────────────────────────────────────────
+    spawnStars(cx, cy) {
+      const colors = ['#ffd700','#ff69b4','#00e676','#ff6e40','#7c4dff','#40c4ff'];
+      const shapes = ['⭐','✨','💫','🌟'];
+      for (let i = 0; i < 14; i++) {
+        const angle = (i / 14) * Math.PI * 2;
+        const dist  = Phaser.Math.Between(70, 140);
+        const shape = shapes[i % shapes.length];
+        const col   = colors[i % colors.length];
+        const star  = this.add.text(cx, cy, shape, {
+          fontSize: `${Phaser.Math.Between(16, 24)}px`, color: col,
+        }).setDepth(20).setOrigin(0.5);
+        this.tweens.add({
+          targets: star,
+          x: cx + Math.cos(angle) * dist,
+          y: cy + Math.sin(angle) * dist,
+          alpha: 0,
+          scaleX: 0.2, scaleY: 0.2,
+          duration: Phaser.Math.Between(550, 850),
+          ease: 'Power2.Out',
+          onComplete: () => star.destroy(),
+        });
+      }
+    }
+
+    // ── Synth cheer sound ────────────────────────────────────────────────────
+    playCheer() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [[523,0],[659,0.1],[784,0.2],[1046,0.3]].forEach(([freq, t]) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.14, ctx.currentTime + t);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28);
+          osc.start(ctx.currentTime + t);
+          osc.stop(ctx.currentTime + t + 0.3);
+        });
+      } catch(e) {}
+    }
+
+    // ── Win screen ───────────────────────────────────────────────────────────
+    showWinScreen() {
+      // Dim overlay
+      const overlay = this.add.graphics().setDepth(30);
+      overlay.fillStyle(0x0d001a, 0.62);
+      overlay.fillRect(0, 0, 900, 600);
+
+      // Win card
+      const card = this.add.graphics().setDepth(31);
+      card.fillGradientStyle(0x6a00f4, 0x6a00f4, 0xc51162, 0xc51162, 1);
+      card.fillRoundedRect(140, 120, 560, 360, 28);
+      card.lineStyle(3, 0xffd700, 1);
+      card.strokeRoundedRect(140, 120, 560, 360, 28);
+
+      // Big emoji
+      this.add.text(420, 190, '🎉', { fontSize: '64px' })
+        .setDepth(32).setOrigin(0.5);
+
+      this.add.text(420, 276, 'You found everyone!', {
+        fontFamily: 'Fredoka One', fontSize: '34px',
+        color: '#ffd700', stroke: '#4a0070', strokeThickness: 4,
+      }).setDepth(32).setOrigin(0.5);
+
+      this.add.text(420, 330, 'Great job, Kaylee! 🌟', {
+        fontFamily: 'Fredoka One', fontSize: '26px', color: '#ffffff',
+      }).setDepth(32).setOrigin(0.5);
+
+      const m = Math.floor(this.timerSecs / 60);
+      const s = this.timerSecs % 60;
+      this.add.text(420, 376, `Your time: ${m}:${s.toString().padStart(2,'0')} ⏱`, {
+        fontFamily: 'Fredoka One', fontSize: '20px', color: '#e1bee7',
+      }).setDepth(32).setOrigin(0.5);
+
+      // All animal emojis as a row
+      const emojis = ANIMAL_DEFS.map(a => a.emoji).join('  ');
+      this.add.text(420, 418, emojis, { fontSize: '30px' })
+        .setDepth(32).setOrigin(0.5);
+
+      // Play Again button
+      const btn = this.add.text(420, 460, '  ▶ Play Again!  ', {
+        fontFamily: 'Fredoka One', fontSize: '24px',
+        color: '#ffffff', backgroundColor: '#00897b',
+        padding: { x: 20, y: 12 },
+      }).setDepth(32).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      btn.on('pointerover', () => btn.setStyle({ color: '#ffd700' }));
+      btn.on('pointerout',  () => btn.setStyle({ color: '#ffffff' }));
+      btn.on('pointerdown', () => this.scene.restart());
+
+      // Confetti
+      this.launchConfetti();
+
+      // Win fanfare
+      this.playFanfare();
+    }
+
+    launchConfetti() {
+      const colors = ['#ffd700','#ff69b4','#7c4dff','#00e676','#ff6e40','#40c4ff','#ffffff'];
+      const shapes = ['★','●','♦','▲'];
+      for (let i = 0; i < 80; i++) {
+        this.time.delayedCall(i * 40, () => {
+          const x   = Phaser.Math.Between(80, 820);
+          const col = colors[Math.floor(Math.random() * colors.length)];
+          const shp = shapes[Math.floor(Math.random() * shapes.length)];
+          const sz  = Phaser.Math.Between(13, 22);
+          const c   = this.add.text(x, -24, shp, { fontSize: `${sz}px`, color: col })
+                        .setDepth(33).setOrigin(0.5);
+          this.tweens.add({
+            targets: c,
+            y:       660,
+            x:       x + Phaser.Math.Between(-80, 80),
+            angle:   Phaser.Math.Between(-200, 200),
+            duration: Phaser.Math.Between(1400, 2600),
+            ease:    'Linear',
+            onComplete: () => c.destroy(),
+          });
+        });
+      }
+    }
+
+    playFanfare() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const melody = [523,659,784,659,784,1046,784,1046,1175,1046];
+        melody.forEach((freq, i) => {
+          const osc  = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          const t = ctx.currentTime + i * 0.14;
+          gain.gain.setValueAtTime(0.18, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+          osc.start(t);
+          osc.stop(t + 0.25);
+        });
+      } catch(e) {}
+    }
+  }
+
+  // ── Phaser config ────────────────────────────────────────────────────────────
+  const config = {
+    type: Phaser.AUTO,
+    width:  900,
+    height: 600,
+    backgroundColor: '#1a0a2e',
+    scene: HideAndSeekScene,
+    parent: document.body,
+    scale: {
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+    },
+  };
+
+  new Phaser.Game(config);
+  </script>
+</body>
+</html>

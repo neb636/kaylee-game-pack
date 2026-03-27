@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>GAME_TITLE — Kaylee's Game World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0533;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow: hidden;
+      touch-action: manipulation; /* prevent double-tap zoom on iOS */
+    }
+    #back-btn {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 9999;
+      font-family: 'Fredoka One', cursive;
+      font-size: 1.1rem;
+      background: rgba(123, 47, 247, 0.85);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 18px;
+      cursor: pointer;
+      text-decoration: none;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    #back-btn:hover { background: rgba(123, 47, 247, 1); }
+  </style>
+</head>
+<body>
+  <a id="back-btn" href="/index.html">🏠 Games</a>
+
+  <!-- Phaser 3 -->
+  <script src="/lib/phaser.min.js"></script>
+  <!-- Howler.js for audio -->
+  <script src="/lib/howler.min.js"></script>
+
+  <script>
+    // ── Game Config ─────────────────────────────────────────────────────────
+    const GAME_W = 480;
+    const GAME_H = 720;
+
+    // ── Scenes ──────────────────────────────────────────────────────────────
+    class MainScene extends Phaser.Scene {
+      constructor() { super('MainScene'); }
+
+      preload() {
+        // Load assets here
+        // this.load.image('key', '/packs/PACK_NAME/path/to/asset.png');
+      }
+
+      create() {
+        // Set up game objects here
+        this.add.text(GAME_W / 2, GAME_H / 2, 'Hello Kaylee!', {
+          fontFamily: 'Fredoka One',
+          fontSize: '36px',
+          color: '#ff69b4',
+        }).setOrigin(0.5);
+      }
+
+      update() {
+        // Game loop
+      }
+    }
+
+    // ── Launch ──────────────────────────────────────────────────────────────
+    const config = {
+      type: Phaser.AUTO,
+      width: GAME_W,
+      height: GAME_H,
+      backgroundColor: '#1a0533',
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+      },
+      scene: [MainScene],
+      // Enable touch input
+      input: {
+        activePointers: 3,
+      },
+    };
+
+    const game = new Phaser.Game(config);
+  </script>
+</body>
+</html>

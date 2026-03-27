@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snowflake Winter Wonderland — Kaylee's Games</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1b2a; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+    #home-btn {
+      position: fixed; top: 14px; left: 14px; z-index: 100;
+      background: #5b9bd5; color: #fff; border: none; border-radius: 50px;
+      padding: 10px 20px; font-family: 'Fredoka One', cursive; font-size: 20px;
+      cursor: pointer; box-shadow: 0 4px 0 #2a6099; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    #home-btn:hover { background: #4a8bc4; }
+    #home-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #2a6099; }
+  </style>
+</head>
+<body>
+<a id="home-btn" href="/index.html">🏠 Games</a>
+<script src="/lib/phaser.min.js"></script>
+<script>
+'use strict';
+
+const W = 800, H = 600;
+
+/* ══════════════════════════════════════════════════════════
+   GameScene
+   ══════════════════════════════════════════════════════════ */
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+
+  /* ── create ─────────────────────────────────────────── */
+  create() {
+    this.collected  = 0;
+    this.WIN_TOTAL  = 12;
+    this.px = 400;           // player world position
+    this.py = 300;
+    this.warmActive = 0;     // ms remaining for cocoa glow
+
+    this.makeTextures();
+    this.drawWorld();
+    this.setupTrees();
+    this.placeSnowflakes();
+    this.placeCocoa();
+    this.createPlayer();
+    this.setupSnowfall();
+    this.buildUI();
+    this.setupInput();
+  }
+
+  /* ── procedural textures ─────────────────────────────── */
+  makeTextures() {
+
+    /* ── player: top-down girl in winter parka ── */
+    {
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+      // Shadow
+      g.fillStyle(0x000000, 0.13);
+      g.fillEllipse(24, 43, 34, 10);
+
+      // Parka body (purple)
+      g.fillStyle(0x7B2FF7, 1);
+      g.fillEllipse(24, 30, 38, 30);
+      // Darker sides
+      g.fillStyle(0x5A1AC0, 1);
+      g.fillEllipse(8,  30, 14, 22);
+      g.fillEllipse(40, 30, 14, 22);
+      // Pink mittens
+      g.fillStyle(0xFF69B4, 1);
+      g.fillCircle(5,  34, 6);
+      g.fillCircle(43, 34, 6);
+
+      // Head
+      g.fillStyle(0xFFCBA0, 1);
+      g.fillCircle(24, 12, 13);
+      // Eyes
+      g.fillStyle(0x1A1A2E, 1);
+      g.fillCircle(20, 11, 2.2);
+      g.fillCircle(28, 11, 2.2);
+      // Eye shine
+      g.fillStyle(0xFFFFFF, 1);
+      g.fillCircle(21, 10, 0.8);
+      g.fillCircle(29, 10, 0.8);
+      // Rosy cheeks
+      g.fillStyle(0xFF8FA3, 0.45);
+      g.fillCircle(17, 15, 3.5);
+      g.fillCircle(31, 15, 3.5);
+
+      // Scarf (cyan-blue)
+      g.fillStyle(0x29B6D8, 1);
+      g.fillRect(15, 22, 18, 6);
+      // Scarf fringe
+      g.fillStyle(0x1A9BBF, 1);
+      for (let i = 0; i < 5; i++) g.fillRect(15 + i * 4, 28, 3, 4);
+
+      // Hat (dark blue)
+      g.fillStyle(0x1A2A6E, 1);
+      g.fillRect(12, 3, 24, 9);
+      g.fillRect(15, -6, 18, 11);
+      // Hat pom-pom
+      g.fillStyle(0xFF69B4, 1);
+      g.fillCircle(24, -8, 5);
+      // Hat stripe
+      g.fillStyle(0xFF6EB4, 0.6);
+      g.fillRect(12, 7, 24, 3);
+
+      g.generateTexture('player', 48, 48);
+      g.destroy();
+    }
+
+    /* ── snowflake ── */
+    {
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+      const cx = 24, cy = 24, r = 20;
+
+      // Outer glow rings
+      g.fillStyle(0xAADDFF, 0.18);
+      g.fillCircle(cx, cy, r + 6);
+      g.fillStyle(0xCCEEFF, 0.28);
+      g.fillCircle(cx, cy, r + 2);
+
+      // 6 arms + branches
+      g.lineStyle(2.5, 0xFFFFFF, 1);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const ex = cx + Math.cos(a) * r, ey = cy + Math.sin(a) * r;
+        g.lineBetween(cx, cy, ex, ey);
+        // Branch at 65%
+        const bx = cx + Math.cos(a) * r * 0.65, by = cy + Math.sin(a) * r * 0.65;
+        const pa = a + Math.PI / 2;
+        const bl = r * 0.22;
+        g.lineBetween(bx + Math.cos(pa)*bl, by + Math.sin(pa)*bl,
+                      bx - Math.cos(pa)*bl, by - Math.sin(pa)*bl);
+        // Branch at 38%
+        const bx2 = cx + Math.cos(a) * r * 0.38, by2 = cy + Math.sin(a) * r * 0.38;
+        const bl2 = r * 0.16;
+        g.lineBetween(bx2 + Math.cos(pa)*bl2, by2 + Math.sin(pa)*bl2,
+                      bx2 - Math.cos(pa)*bl2, by2 - Math.sin(pa)*bl2);
+      }
+      // Centre
+      g.fillStyle(0xFFFFFF, 1);
+      g.fillCircle(cx, cy, 4.5);
+      g.fillStyle(0xCCEEFF, 0.8);
+      g.fillCircle(cx, cy, 2);
+
+      g.generateTexture('snowflake', 48, 48);
+      g.destroy();
+    }
+
+    /* ── cocoa cup ── */
+    {
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+      // Steam curls
+      g.lineStyle(2, 0xFFFFFF, 0.6);
+      for (let i = 0; i < 3; i++) {
+        const sx = 11 + i * 9;
+        g.beginPath(); g.moveTo(sx, 9); g.lineTo(sx - 2, 4); g.lineTo(sx + 1, -1); g.strokePath();
+      }
+      // Cup
+      g.fillStyle(0x8B4513, 1);
+      g.fillRoundedRect(5, 11, 30, 22, 4);
+      // Handle
+      g.lineStyle(3, 0x6B3210, 1);
+      g.strokeCircle(36, 21, 6);
+      // Liquid interior
+      g.fillStyle(0x4A2508, 1);
+      g.fillRoundedRect(7, 13, 26, 18, 3);
+      // Cream surface
+      g.fillStyle(0xFFF8DC, 1);
+      g.fillEllipse(20, 14, 22, 8);
+      // Mini marshmallows
+      g.fillStyle(0xFFFFFF, 1);
+      g.fillRoundedRect(13, 11, 7, 5, 2);
+      g.fillRoundedRect(22, 10, 7, 5, 2);
+      g.generateTexture('cocoa', 42, 42);
+      g.destroy();
+    }
+  }
+
+  /* ── world drawing ──────────────────────────────────── */
+  drawWorld() {
+    const bg = this.add.graphics().setDepth(0);
+
+    /* Night sky gradient */
+    [[0, 80, 0x0A1628], [80, 80, 0x0E2035], [160, 80, 0x122540],
+     [240, 80, 0x162D4D], [320, 80, 0x1A3558]].forEach(([y, h, c]) => {
+      bg.fillStyle(c, 1);
+      bg.fillRect(0, y, W, h);
+    });
+
+    /* Snow ground */
+    bg.fillStyle(0xD6EAF8, 1);
+    bg.fillRect(0, 400, W, 200);
+    bg.fillStyle(0xE8F4FD, 0.8);
+    bg.fillRect(0, 400, W, 35);
+
+    /* Horizon snow drifts */
+    [[0, 405, 180, 38], [160, 398, 200, 36], [350, 402, 180, 34],
+     [520, 399, 200, 37], [700, 404, 160, 35]].forEach(([x, y, w, h]) => {
+      bg.fillStyle(0xECF5FF, 0.9);
+      bg.fillEllipse(x, y, w, h);
+    });
+    bg.fillStyle(0xD6EAF8, 1); // flatten the horizon
+    bg.fillRect(0, 408, W, 200);
+
+    /* Subtle snow texture — random sparkle dots */
+    const rng = Phaser.Math.RND;
+    bg.fillStyle(0xFFFFFF, 0.7);
+    for (let i = 0; i < 60; i++) {
+      bg.fillCircle(rng.between(0, W), rng.between(415, H), rng.realInRange(0.8, 2.2));
+    }
+
+    /* Stars in sky */
+    const starData = [
+      [48,18],[140,55],[255,12],[380,42],[470,8],[570,35],[688,22],[760,55],
+      [95,110],[200,140],[330,120],[490,145],[620,108],[740,135],
+      [65,75],[320,70],[580,90],[730,85],[180,95],[430,65],
+    ];
+    starData.forEach(([sx, sy]) => {
+      const a = 0.4 + rng.realInRange(0, 0.55);
+      const r = rng.realInRange(0.9, 2.2);
+      bg.fillStyle(0xFFFFFF, a);
+      bg.fillCircle(sx, sy, r);
+    });
+
+    /* Moon (crescent) */
+    bg.fillStyle(0xFFF9C4, 0.95);
+    bg.fillCircle(710, 75, 32);
+    bg.fillStyle(0x0E2035, 1);   // same as sky — creates crescent
+    bg.fillCircle(723, 68, 26);
+
+    /* Frozen pond */
+    const pond = this.add.graphics().setDepth(1);
+    pond.fillStyle(0x89CFF0, 0.82);
+    pond.fillEllipse(400, 345, 210, 115);
+    // Inner highlight
+    pond.fillStyle(0xADD8E6, 0.45);
+    pond.fillEllipse(385, 338, 140, 70);
+    // Edge
+    pond.lineStyle(3, 0xC8E8F8, 0.9);
+    pond.strokeEllipse(400, 345, 210, 115);
+    pond.lineStyle(1.5, 0x7ABCDC, 0.6);
+    pond.strokeEllipse(400, 345, 200, 108);
+    // Ice cracks
+    pond.lineStyle(1, 0xFFFFFF, 0.5);
+    pond.beginPath(); pond.moveTo(348, 335); pond.lineTo(368, 350); pond.lineTo(358, 365); pond.strokePath();
+    pond.beginPath(); pond.moveTo(432, 325); pond.lineTo(450, 342); pond.strokePath();
+    pond.beginPath(); pond.moveTo(380, 362); pond.lineTo(398, 375); pond.strokePath();
+    pond.beginPath(); pond.moveTo(415, 370); pond.lineTo(428, 355); pond.lineTo(442, 360); pond.strokePath();
+    // Skate icon
+    this.add.text(400, 345, '⛸', { fontSize: '26px' }).setOrigin(0.5).setDepth(2).setAlpha(0.55);
+
+    /* Snowman (right of pond) */
+    this.drawSnowman(560, 455);
+
+    /* Rocks */
+    this.drawRock(680, 480, 13);
+    this.drawRock(696, 472, 9);
+    this.drawRock(128, 382, 11);
+    this.drawRock(140, 376, 7);
+    this.drawRock(268, 478, 8);
+  }
+
+  drawSnowman(x, y) {
+    const g = this.add.graphics().setDepth(3);
+    // Shadow
+    g.fillStyle(0x000000, 0.10);
+    g.fillEllipse(x, y + 24, 45, 12);
+    // Bottom ball
+    g.fillStyle(0xECF5FF, 1);
+    g.fillCircle(x, y + 12, 20);
+    g.lineStyle(1, 0xC8DCF0, 1); g.strokeCircle(x, y + 12, 20);
+    // Middle ball
+    g.fillStyle(0xECF5FF, 1);
+    g.fillCircle(x, y - 6, 14);
+    g.lineStyle(1, 0xC8DCF0, 1); g.strokeCircle(x, y - 6, 14);
+    // Head
+    g.fillStyle(0xECF5FF, 1);
+    g.fillCircle(x, y - 23, 11);
+    g.lineStyle(1, 0xC8DCF0, 1); g.strokeCircle(x, y - 23, 11);
+    // Eyes
+    g.fillStyle(0x1A2A3E, 1);
+    g.fillCircle(x - 3.5, y - 25, 2);
+    g.fillCircle(x + 3.5, y - 25, 2);
+    // Carrot nose
+    g.fillStyle(0xFF6B00, 1);
+    g.fillTriangle(x, y - 23, x + 9, y - 22, x, y - 21);
+    // Buttons
+    g.fillStyle(0x1A2A3E, 1);
+    [y - 6, y, y + 7].forEach(by => g.fillCircle(x, by, 2));
+    // Scarf
+    g.fillStyle(0xFF6EB4, 1); g.fillEllipse(x, y - 14, 30, 7);
+    g.fillStyle(0xDD5598, 1);
+    [x - 8, x - 2, x + 5, x + 11].forEach(fx => g.fillRect(fx, y - 11, 5, 6));
+    // Stick arms
+    g.lineStyle(2.5, 0x5D4037, 1);
+    g.lineBetween(x - 14, y - 5, x - 32, y - 16);
+    g.lineBetween(x + 14, y - 5, x + 32, y - 16);
+    // Branch fingers
+    g.lineStyle(1.5, 0x5D4037, 0.8);
+    g.lineBetween(x - 32, y - 16, x - 38, y - 12);
+    g.lineBetween(x + 32, y - 16, x + 38, y - 12);
+    // Hat
+    g.fillStyle(0x1A2A6E, 1);
+    g.fillRect(x - 13, y - 37, 26, 7);
+    g.fillRect(x - 8, y - 51, 16, 16);
+    // Hat band
+    g.fillStyle(0xFF6EB4, 0.7);
+    g.fillRect(x - 13, y - 35, 26, 4);
+  }
+
+  drawRock(x, y, r) {
+    const g = this.add.graphics().setDepth(3);
+    g.fillStyle(0x546E7A, 1);
+    g.fillEllipse(x, y, r * 2.4, r * 1.7);
+    g.fillStyle(0x78909C, 0.7);
+    g.fillEllipse(x - r * 0.25, y - r * 0.2, r * 1.0, r * 0.65);
+    g.fillStyle(0xFFFFFF, 0.25);
+    g.fillEllipse(x - r * 0.35, y - r * 0.35, r * 0.5, r * 0.3);
+  }
+
+  /* ── trees ──────────────────────────────────────────── */
+  setupTrees() {
+    // [x, yBase, visualH, collisionR]
+    // yBase = visual bottom of trunk
+    this.treeData = [
+      // Left wall
+      [62,  415, 95, 30], [55,  345, 78, 25],
+      [85,  495, 82, 26], [115, 560, 70, 21],
+      // Right wall
+      [742, 412, 92, 30], [750, 338, 76, 24],
+      [718, 492, 82, 26], [690, 562, 70, 21],
+      // Top scattered
+      [200, 325, 85, 27], [610, 322, 82, 26],
+      [305, 312, 72, 22], [502, 308, 74, 22],
+      // Bottom
+      [368, 548, 65, 20], [440, 551, 68, 21],
+    ];
+
+    const g = this.add.graphics().setDepth(2);
+    this.treeData.forEach(([x, yB, h, r]) => this.drawPineTree(g, x, yB, h, r));
+  }
+
+  drawPineTree(g, x, yBase, h, r) {
+    // Shadow
+    g.fillStyle(0x000000, 0.10);
+    g.fillEllipse(x, yBase + 6, r * 2.0, r * 0.65);
+
+    // Trunk
+    const tw = Math.max(5, r * 0.3);
+    const th = r * 0.55;
+    g.fillStyle(0x5D4037, 1);
+    g.fillRect(x - tw / 2, yBase - th, tw, th + 4);
+    g.fillStyle(0x795548, 0.55);
+    g.fillRect(x - tw / 2 + 1, yBase - th, tw / 3, th);
+
+    // Snow at base
+    g.fillStyle(0xDDEEFF, 0.80);
+    g.fillEllipse(x, yBase, r * 1.7, r * 0.48);
+
+    // Pine layers (bottom → top)
+    const LAYERS = 4;
+    for (let i = 0; i < LAYERS; i++) {
+      const t  = i / (LAYERS - 1);
+      const ly = (yBase - th) - (h - th) * t;
+      const lr = r * (1.12 - t * 0.58);
+
+      // Dark back
+      g.fillStyle(0x1B4332, 1);
+      g.fillTriangle(x - lr, ly, x + lr, ly, x, ly - lr * 1.12);
+      // Main green
+      g.fillStyle(0x2D6A4F, 1);
+      g.fillTriangle(x - lr * 0.90, ly - lr * 0.07,
+                     x + lr * 0.90, ly - lr * 0.07,
+                     x,             ly - lr * 1.10);
+      // Left highlight strip
+      g.fillStyle(0x3D8C66, 0.35);
+      g.fillTriangle(x - lr * 0.90, ly - lr * 0.07,
+                     x - lr * 0.10, ly - lr * 0.07,
+                     x - lr * 0.15, ly - lr * 0.60);
+
+      // Snow cap (flat ellipse on top of layer)
+      g.fillStyle(0xDDEEFF, 0.88);
+      g.fillEllipse(x, ly - lr * 0.88, lr * 0.92, lr * 0.28);
+      // Branch snow patches
+      g.fillStyle(0xFFFFFF, 0.50);
+      g.fillEllipse(x - lr * 0.48, ly - lr * 0.35, lr * 0.48, lr * 0.12);
+      g.fillEllipse(x + lr * 0.38, ly - lr * 0.52, lr * 0.40, lr * 0.11);
+    }
+    // Top star-tip
+    g.fillStyle(0xECF5FF, 0.92);
+    g.fillCircle(x, yBase - h, 4.5);
+  }
+
+  /* ── snowflakes ─────────────────────────────────────── */
+  placeSnowflakes() {
+    // 12 positions — clear of all tree collision radii
+    const positions = [
+      [140, 362], [400, 335], [665, 360],    // across the top of the play area
+      [200, 415], [175, 490],                // left open zone
+      [622, 415], [630, 490],                // right open zone
+      [310, 406], [490, 408],                // flanking the pond
+      [252, 532], [400, 515], [572, 530],    // bottom open zone
+    ];
+
+    this.snowflakes = positions.map(([x, y]) => {
+      const sf = this.add.image(x, y, 'snowflake').setDepth(4);
+      sf.collected = false;
+      this.tweens.add({
+        targets: sf, y: y - 6,
+        duration: 1400 + Math.random() * 1100,
+        yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        delay: Math.random() * 2200
+      });
+      return sf;
+    });
+  }
+
+  /* ── hot cocoa bonuses ──────────────────────────────── */
+  placeCocoa() {
+    this.cocoaItems = [[330, 465], [450, 360], [220, 540]].map(([x, y]) => {
+      const c = this.add.image(x, y, 'cocoa').setDepth(4).setScale(0.9);
+      c.collected = false;
+      this.tweens.add({ targets: c, angle: -6, duration: 900, yoyo: true, repeat: -1 });
+      return c;
+    });
+  }
+
+  /* ── player ─────────────────────────────────────────── */
+  createPlayer() {
+    this.player = this.add.image(this.px, this.py, 'player').setDepth(6).setScale(1.12);
+    this.warmGlow = this.add.graphics().setDepth(5);
+  }
+
+  /* ── snowfall ────────────────────────────────────────── */
+  setupSnowfall() {
+    this.snowParts = Array.from({ length: 110 }, () => ({
+      x:  Math.random() * W,
+      y:  Math.random() * H,
+      vy: 18 + Math.random() * 55,
+      vx: (Math.random() - 0.5) * 16,
+      r:  0.9 + Math.random() * 2.8,
+      a:  0.28 + Math.random() * 0.60,
+      w:  Math.random() * Math.PI * 2,
+      ws: 0.5 + Math.random() * 1.6,
+    }));
+    this.snowGfx = this.add.graphics().setDepth(12);
+  }
+
+  /* ── UI ──────────────────────────────────────────────── */
+  buildUI() {
+    const bg = this.add.graphics().setDepth(14);
+    bg.fillStyle(0x0A1628, 0.78);
+    bg.fillRoundedRect(8, 8, 218, 56, 28);
+
+    this.counterText = this.add.text(117, 36, '❄️  0 / 12', {
+      fontFamily: 'Fredoka One', fontSize: '28px',
+      fill: '#AADDFF', stroke: '#0A1628', strokeThickness: 4
+    }).setOrigin(0.5).setDepth(15);
+
+    // Cocoa hint badge (top-right)
+    const hintBg = this.add.graphics().setDepth(14);
+    hintBg.fillStyle(0x0A1628, 0.75);
+    hintBg.fillRoundedRect(W - 200, 8, 192, 44, 22);
+    this.add.text(W - 104, 30, '☕ Find hot cocoa too!', {
+      fontFamily: 'Fredoka One', fontSize: '14px',
+      fill: '#FFD28A', stroke: '#0A1628', strokeThickness: 2
+    }).setOrigin(0.5).setDepth(15);
+
+    // Movement hint (fades after 4 s)
+    const hint = this.add.text(W / 2, H - 16, 'Arrow Keys or WASD to walk', {
+      fontFamily: 'Fredoka One', fontSize: '18px',
+      fill: '#7BAFD4', stroke: '#0A1628', strokeThickness: 2
+    }).setOrigin(0.5).setDepth(15);
+    this.time.delayedCall(4200, () => {
+      this.tweens.add({ targets: hint, alpha: 0, duration: 900 });
+    });
+  }
+
+  /* ── input ───────────────────────────────────────────── */
+  setupInput() {
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd    = this.input.keyboard.addKeys({ up: 'W', down: 'S', left: 'A', right: 'D' });
+  }
+
+  /* ── update loop ─────────────────────────────────────── */
+  update(time, delta) {
+    const dt    = delta / 1000;
+    const SPEED = 138;
+    const PR    = 15;   // player collision radius
+
+    /* Player movement */
+    let dx = 0, dy = 0;
+    if (this.cursors.left.isDown  || this.wasd.left.isDown)  dx = -1;
+    if (this.cursors.right.isDown || this.wasd.right.isDown) dx =  1;
+    if (this.cursors.up.isDown    || this.wasd.up.isDown)    dy = -1;
+    if (this.cursors.down.isDown  || this.wasd.down.isDown)  dy =  1;
+    if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+    let nx = Phaser.Math.Clamp(this.px + dx * SPEED * dt, 22, W - 22);
+    let ny = Phaser.Math.Clamp(this.py + dy * SPEED * dt, 22, H - 22);
+
+    /* Tree collision — push player out of each tree's circle */
+    this.treeData.forEach(([tx, tyBase, , cr]) => {
+      const colY = tyBase - cr * 0.30;
+      const dist = Phaser.Math.Distance.Between(nx, ny, tx, colY);
+      const min  = PR + cr * 0.74;
+      if (dist < min && dist > 0.01) {
+        const ang  = Math.atan2(ny - colY, nx - tx);
+        const push = min - dist + 0.5;
+        nx = Phaser.Math.Clamp(nx + Math.cos(ang) * push, 22, W - 22);
+        ny = Phaser.Math.Clamp(ny + Math.sin(ang) * push, 22, H - 22);
+      }
+    });
+
+    this.px = nx; this.py = ny;
+    this.player.setPosition(nx, ny);
+    if (dx < 0) this.player.setFlipX(false);
+    if (dx > 0) this.player.setFlipX(true);
+
+    /* Snowflake collection */
+    this.snowflakes.forEach(sf => {
+      if (!sf.active || sf.collected) return;
+      if (Phaser.Math.Distance.Between(nx, ny, sf.x, sf.y) < 28)
+        this.collectSnowflake(sf);
+    });
+
+    /* Cocoa collection */
+    this.cocoaItems.forEach(c => {
+      if (!c.active || c.collected) return;
+      if (Phaser.Math.Distance.Between(nx, ny, c.x, c.y) < 26)
+        this.collectCocoa(c);
+    });
+
+    /* Gentle snowflake rotation */
+    this.snowflakes.forEach(sf => { if (sf.active && !sf.collected) sf.rotation += dt * 0.55; });
+
+    /* Warm glow (cocoa effect) */
+    this.warmGlow.clear();
+    if (this.warmActive > 0) {
+      this.warmActive -= delta;
+      const strength = Math.min(1, this.warmActive / 600);
+      this.warmGlow.fillStyle(0xFF8C00, strength * 0.22);
+      this.warmGlow.fillCircle(nx, ny, 62);
+      this.warmGlow.fillStyle(0xFFBB55, strength * 0.12);
+      this.warmGlow.fillCircle(nx, ny, 38);
+    }
+
+    /* Snowfall particles */
+    this.snowGfx.clear();
+    this.snowParts.forEach(p => {
+      p.w += p.ws * dt;
+      p.x += p.vx * dt + Math.sin(p.w) * 14 * dt;
+      p.y += p.vy * dt;
+      if (p.y > H + 6) { p.y = -6; p.x = Math.random() * W; }
+      if (p.x < -6)    p.x = W + 6;
+      if (p.x > W + 6) p.x = -6;
+      this.snowGfx.fillStyle(0xFFFFFF, p.a);
+      this.snowGfx.fillCircle(p.x, p.y, p.r);
+    });
+  }
+
+  /* ── collection handlers ─────────────────────────────── */
+  collectSnowflake(sf) {
+    sf.collected = true;
+    this.tweens.killTweensOf(sf);
+
+    // Expand & fade
+    this.tweens.add({
+      targets: sf, scaleX: 2.8, scaleY: 2.8, alpha: 0,
+      duration: 480, ease: 'Power2', onComplete: () => sf.destroy()
+    });
+
+    this.sparkle(sf.x, sf.y, ['❄️','✨','💙','⭐','🌟']);
+
+    this.collected++;
+    this.counterText.setText(`❄️  ${this.collected} / 12`);
+    this.tweens.add({ targets: this.counterText, scaleX: 1.35, scaleY: 1.35, duration: 130, yoyo: true });
+
+    const msgs = ['Beautiful! ❄️', 'Got one! ✨', 'Sparkly! 💙', 'Yay! ⭐', 'Found it! ❄️',
+                  'Shiny! 🌟', 'Magical! ❄️', 'Amazing! ✨'];
+    const pop = this.add.text(sf.x, sf.y - 22, msgs[Math.floor(Math.random() * msgs.length)], {
+      fontFamily: 'Fredoka One', fontSize: '23px',
+      fill: '#FFFFFF', stroke: '#0A1628', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(20);
+    this.tweens.add({ targets: pop, y: sf.y - 82, alpha: 0, duration: 920, onComplete: () => pop.destroy() });
+
+    if (this.collected >= this.WIN_TOTAL) {
+      this.time.delayedCall(900, () => this.scene.start('WinScene'));
+    }
+  }
+
+  collectCocoa(c) {
+    c.collected = true;
+    this.tweens.killTweensOf(c);
+    this.tweens.add({
+      targets: c, scaleX: 2.2, scaleY: 2.2, alpha: 0,
+      duration: 420, onComplete: () => c.destroy()
+    });
+    this.warmActive = 4500;
+
+    this.sparkle(c.x, c.y, ['☕','🍫','💛','✨']);
+    const pop = this.add.text(c.x, c.y - 22, '☕ Warm & cozy!', {
+      fontFamily: 'Fredoka One', fontSize: '22px',
+      fill: '#FFD28A', stroke: '#0A1628', strokeThickness: 3
+    }).setOrigin(0.5).setDepth(20);
+    this.tweens.add({ targets: pop, y: c.y - 82, alpha: 0, duration: 950, onComplete: () => pop.destroy() });
+  }
+
+  sparkle(cx, cy, emojis) {
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const r = 32 + Math.random() * 42;
+      const s = this.add.text(cx, cy, emojis[Math.floor(Math.random() * emojis.length)], {
+        fontSize: `${16 + Math.floor(Math.random() * 12)}px`
+      }).setOrigin(0.5).setDepth(20);
+      this.tweens.add({
+        targets: s,
+        x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r,
+        alpha: 0, scale: 0.2, duration: 520 + Math.random() * 340,
+        onComplete: () => s.destroy()
+      });
+    }
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   WinScene
+   ══════════════════════════════════════════════════════════ */
+class WinScene extends Phaser.Scene {
+  constructor() { super('WinScene'); }
+
+  create() {
+    /* Background — night sky */
+    const g = this.add.graphics();
+    [[0, 120, 0x0A1628], [120, 120, 0x0E2035], [240, 120, 0x122540], [360, 240, 0x162D4D]].forEach(([y, h, c]) => {
+      g.fillStyle(c, 1); g.fillRect(0, y, W, h);
+    });
+
+    /* Snow ground */
+    g.fillStyle(0xD6EAF8, 1); g.fillRect(0, 460, W, 140);
+    g.fillStyle(0xECF5FF, 0.85); g.fillEllipse(W / 2, 462, W + 80, 38);
+
+    /* Stars */
+    for (let i = 0; i < 90; i++) {
+      g.fillStyle(0xFFFFFF, 0.3 + Math.random() * 0.6);
+      g.fillCircle(Math.random() * W, Math.random() * 430, 0.8 + Math.random() * 2);
+    }
+    /* Moon */
+    g.fillStyle(0xFFF9C4, 0.95); g.fillCircle(710, 75, 32);
+    g.fillStyle(0x0E2035, 1);    g.fillCircle(724, 68, 26);
+
+    /* Snowmen row */
+    [100, 220, 400, 580, 700].forEach(sx => {
+      this.add.text(sx, 490, '⛄', { fontSize: '40px' }).setOrigin(0.5);
+    });
+
+    /* Confetti */
+    const confColors = [0xFF6EB4, 0xFFD700, 0xAADDFF, 0x9B59B6, 0x2ECC71, 0xFFFFFF, 0xFF8C00];
+    this.confetti = Array.from({ length: 90 }, (_, i) => ({
+      x: Math.random() * W, y: Math.random() * H - H,
+      vx: (Math.random() - 0.5) * 65, vy: 65 + Math.random() * 105,
+      w: 5 + Math.random() * 9, h: 3 + Math.random() * 6,
+      rot: Math.random() * Math.PI * 2, rs: (Math.random() - 0.5) * 4.5,
+      color: confColors[i % confColors.length]
+    }));
+    this.confG = this.add.graphics().setDepth(25);
+
+    /* Fireworks */
+    this.fireworksG = this.add.graphics().setDepth(24);
+    this.fireworks  = [];
+    this.time.addEvent({
+      delay: 700, callback: this.launchFirework, callbackScope: this, repeat: 12
+    });
+
+    /* Win text */
+    this.add.text(W / 2, 80, '❄️ You found all the', {
+      fontFamily: 'Fredoka One', fontSize: '44px',
+      fill: '#AADDFF', stroke: '#0A1628', strokeThickness: 6
+    }).setOrigin(0.5);
+
+    this.add.text(W / 2, 155, 'snowflakes, Kaylee! ❄️', {
+      fontFamily: 'Fredoka One', fontSize: '50px',
+      fill: '#FFFFFF', stroke: '#0A1628', strokeThickness: 7
+    }).setOrigin(0.5);
+
+    this.add.text(W / 2, 232, '🌟  What a wonderful explorer!  🌟', {
+      fontFamily: 'Fredoka One', fontSize: '26px',
+      fill: '#FFD700', stroke: '#0A1628', strokeThickness: 3
+    }).setOrigin(0.5);
+
+    this.add.text(W / 2, 282, '12 / 12 snowflakes collected ⭐', {
+      fontFamily: 'Fredoka One', fontSize: '22px',
+      fill: '#AADDFF', stroke: '#0A1628', strokeThickness: 3
+    }).setOrigin(0.5);
+
+    /* Play Again */
+    const btn = this.add.text(W / 2, 548, '  ❄️  Play Again!  ❄️  ', {
+      fontFamily: 'Fredoka One', fontSize: '30px',
+      fill: '#FFFFFF', stroke: '#0A1628', strokeThickness: 4,
+      backgroundColor: '#2E6B9E', padding: { x: 22, y: 12 }
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(26);
+
+    btn.on('pointerover', () => btn.setStyle({ backgroundColor: '#9B59B6' }));
+    btn.on('pointerout',  () => btn.setStyle({ backgroundColor: '#2E6B9E' }));
+    btn.on('pointerdown', () => this.scene.start('GameScene'));
+    this.tweens.add({ targets: btn, scaleX: 1.06, scaleY: 1.06, duration: 660, yoyo: true, repeat: -1 });
+  }
+
+  launchFirework() {
+    const x = 80 + Math.random() * 640;
+    const y = 60 + Math.random() * 300;
+    const colors = [0xFF6EB4, 0xFFD700, 0xAADDFF, 0x9B59B6, 0x2ECC71, 0xFF8C00];
+    const fw = { x, y, color: colors[Math.floor(Math.random() * colors.length)], parts: [], age: 0 };
+    for (let i = 0; i < 28; i++) {
+      const a = (i / 28) * Math.PI * 2;
+      const s = 70 + Math.random() * 90;
+      fw.parts.push({ vx: Math.cos(a) * s, vy: Math.sin(a) * s });
+    }
+    this.fireworks.push(fw);
+  }
+
+  update(time, delta) {
+    const dt = delta / 1000;
+
+    /* Confetti */
+    this.confG.clear();
+    this.confetti.forEach(c => {
+      c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.rs * dt;
+      if (c.y > H + 10) { c.y = -10; c.x = Math.random() * W; }
+      if (c.x < -10) c.x = W + 10;
+      if (c.x > W + 10) c.x = -10;
+      this.confG.fillStyle(c.color, 1);
+      const rw = Math.abs(Math.cos(c.rot)) * c.w;
+      this.confG.fillRect(c.x - rw / 2, c.y - c.h / 2, rw, c.h);
+    });
+
+    /* Fireworks */
+    this.fireworksG.clear();
+    this.fireworks = this.fireworks.filter(fw => fw.age < 1.6);
+    this.fireworks.forEach(fw => {
+      fw.age += dt;
+      fw.parts.forEach(p => {
+        const a   = Math.max(0, 1 - fw.age / 1.3);
+        const px  = fw.x + p.vx * fw.age;
+        const py  = fw.y + p.vy * fw.age + 40 * fw.age * fw.age;
+        this.fireworksG.fillStyle(fw.color, a);
+        this.fireworksG.fillCircle(px, py, 3.2);
+      });
+    });
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Launch
+   ══════════════════════════════════════════════════════════ */
+new Phaser.Game({
+  type: Phaser.AUTO,
+  width: W, height: H,
+  backgroundColor: '#0d1b2a',
+  scene: [GameScene, WinScene],
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
+});
+</script>
+</body>
+</html>
