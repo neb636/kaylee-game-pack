@@ -37,7 +37,7 @@ const GAMES = [
     emoji: '🫧',
     gradient: ['#f857a6', '#ff5858'],
     url: 'games/bubble-pop/',
-    available: false,
+    available: true,
   },
   {
     id: 'farm-helper',
