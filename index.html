@@ -1,13 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Princess Starlight and the Rainbow Crystal Quest</title>
-    <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kaylee Games">
+  <meta name="theme-color" content="#7b2ff7">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Kaylee's Game World ✨</title>
+  <link rel="stylesheet" href="css/launcher.css">
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <script type="module" src="js/main.js"></script>
+  <div id="stars"></div>
+
+  <div id="launcher">
+    <header class="launcher-header">
+      <div class="crown">👑</div>
+      <h1>Kaylee's Game World</h1>
+      <p>Pick a game and let's play!</p>
+    </header>
+
+    <div id="gameGrid"></div>
+  </div>
+
+  <script src="games/princess-starlight/js/launcher.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+  </script>
 </body>
 </html>
