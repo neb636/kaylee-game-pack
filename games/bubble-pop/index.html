@@ -17,9 +17,9 @@
   </style>
 </head>
 <body>
-<script src="/node_modules/phaser/dist/phaser.min.js"></script>
+<script src="/kaylee-game-pack/lib/phaser.min.js"></script>
 <script>
-const PACK = '/packs/craftpix-781165-bubble-shooter-game-assets-pack/png/';
+const PACK = '../../packs/craftpix-781165-bubble-shooter-game-assets-pack/png/';
 
 const COLS       = 8;
 const ROWS       = 6;
@@ -133,7 +133,7 @@ class MenuScene extends Phaser.Scene {
       fontFamily: 'Fredoka One', fontSize: '22px', fill: '#fff',
       stroke: '#7b2ff7', strokeThickness: 3
     }).setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => { window.location.href = '/index.html'; });
+    backBtn.on('pointerdown', () => { window.location.href = '../../index.html'; });
 
     // Floating bubbles decoration
     for (let i = 0; i < 12; i++) {
@@ -170,7 +170,7 @@ class GameScene extends Phaser.Scene {
       fontFamily: 'Fredoka One', fontSize: '20px', fill: '#fff',
       stroke: '#7b2ff7', strokeThickness: 3
     }).setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => { window.location.href = '/index.html'; });
+    backBtn.on('pointerdown', () => { window.location.href = '../../index.html'; });
 
     // Pop counter (top right)
     this.popText = this.add.text(GAME_W - 16, 16, 'Popped: 0', {
@@ -504,7 +504,7 @@ class WinScene extends Phaser.Scene {
       fontFamily: 'Fredoka One', fontSize: '22px', fill: '#fff',
       stroke: '#7b2ff7', strokeThickness: 3
     }).setInteractive({ useHandCursor: true });
-    backBtn.on('pointerdown', () => { window.location.href = '/index.html'; });
+    backBtn.on('pointerdown', () => { window.location.href = '../../index.html'; });
   }
 }
 

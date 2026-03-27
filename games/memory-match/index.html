@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-<script src="/node_modules/phaser/dist/phaser.min.js"></script>
+<script src="/kaylee-game-pack/lib/phaser.min.js"></script>
 <script>
 
 // ─── Animal definitions ───────────────────────────────────────────
@@ -24,7 +24,7 @@
 //   Foal/Horse are 384×512 so 96×128 per frame.
 //   Rabbit Cub is 96×128 so 24×32 per frame.
 
-const PACK = '/packs/top-down-cute-farm-animals-pixel-sprite/PNG/Without_shadow/';
+const PACK = '../../packs/top-down-cute-farm-animals-pixel-sprite/PNG/Without_shadow/';
 
 const ANIMALS = [
   { key: 'foal',      file: 'Foal_without_shadow.png',       fw: 96, fh: 128, name: 'Foal'     },
@@ -376,7 +376,7 @@ class GameScene extends Phaser.Scene {
     }).setOrigin(0.5);
     c.add([bg, txt]);
     c.setSize(96, 38).setInteractive({ cursor: 'pointer' });
-    c.on('pointerdown', () => { window.location.href = '/index.html'; });
+    c.on('pointerdown', () => { window.location.href = '../../index.html'; });
     c.on('pointerover', () => bg.setAlpha(0.8));
     c.on('pointerout',  () => bg.setAlpha(1));
     c.setDepth(10);
@@ -443,7 +443,7 @@ class WinScene extends Phaser.Scene {
     }).setOrigin(0.5);
     bc.add([bbg, btxt]);
     bc.setSize(110, 44).setInteractive({ cursor: 'pointer' });
-    bc.on('pointerdown', () => { window.location.href = '/index.html'; });
+    bc.on('pointerdown', () => { window.location.href = '../../index.html'; });
     bc.on('pointerover', () => bbg.setAlpha(0.8));
     bc.on('pointerout',  () => bbg.setAlpha(1));
     bc.setDepth(10);

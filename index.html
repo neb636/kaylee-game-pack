@@ -10,7 +10,9 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Kaylee's Game World ✨</title>
-  <link rel="stylesheet" href="css/launcher.css">
+  <script type="module" crossorigin src="/kaylee-game-pack/assets/main-BFOGSJo2.js"></script>
+  <link rel="modulepreload" crossorigin href="/kaylee-game-pack/assets/modulepreload-polyfill-3xzlJT5O.js">
+  <link rel="stylesheet" crossorigin href="/kaylee-game-pack/assets/main-lgdTQeAX.css">
 </head>
 <body>
   <div id="stars"></div>
@@ -25,10 +27,9 @@
     <div id="gameGrid"></div>
   </div>
 
-  <script src="games/princess-starlight/js/launcher.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.register('sw.js');
     }
   </script>
 </body>
