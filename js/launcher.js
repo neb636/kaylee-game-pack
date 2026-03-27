@@ -27,7 +27,7 @@ const GAMES = [
     emoji: '🎣',
     gradient: ['#1a78c2', '#56ccf2'],
     url: 'games/fish-catcher/',
-    available: false,
+    available: true,
   },
   {
     id: 'bubble-pop',
@@ -47,7 +47,7 @@ const GAMES = [
     emoji: '🐄',
     gradient: ['#f7971e', '#ffd200'],
     url: 'games/farm-helper/',
-    available: false,
+    available: true,
   },
   {
     id: 'hide-and-seek',
@@ -57,7 +57,7 @@ const GAMES = [
     emoji: '🦊',
     gradient: ['#834d9b', '#d04ed6'],
     url: 'games/hide-and-seek/',
-    available: false,
+    available: true,
   },
   {
     id: 'alphabet-adventure',
@@ -67,7 +67,7 @@ const GAMES = [
     emoji: '🔤',
     gradient: ['#00b09b', '#96c93d'],
     url: 'games/alphabet-adventure/',
-    available: false,
+    available: true,
   },
   {
     id: 'raccoon-rescue',
@@ -77,7 +77,7 @@ const GAMES = [
     emoji: '🦝',
     gradient: ['#4568dc', '#b06ab3'],
     url: 'games/raccoon-rescue/',
-    available: false,
+    available: true,
   },
   {
     id: 'forest-match',
@@ -87,7 +87,7 @@ const GAMES = [
     emoji: '🌲',
     gradient: ['#1d976c', '#93f9b9'],
     url: 'games/forest-match/',
-    available: false,
+    available: true,
   },
   {
     id: 'animal-parade',
@@ -97,7 +97,7 @@ const GAMES = [
     emoji: '🐾',
     gradient: ['#f953c6', '#b91d73'],
     url: 'games/animal-parade/',
-    available: false,
+    available: true,
   },
   {
     id: 'winter-wonderland',
@@ -107,7 +107,7 @@ const GAMES = [
     emoji: '❄️',
     gradient: ['#4facfe', '#00f2fe'],
     url: 'games/winter-wonderland/',
-    available: false,
+    available: true,
   },
 ];
 
