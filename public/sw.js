@@ -1,15 +1,18 @@
-const CACHE_NAME = 'kaylee-games-v1';
+const CACHE_NAME = 'kaylee-games-v2';
+
+// Determine base path dynamically (works on GitHub Pages and localhost)
+const BASE = self.registration.scope;
 
 // Cache the launcher shell on install
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache =>
       cache.addAll([
-        '/index.html',
-        '/css/launcher.css',
-        '/games/princess-starlight/js/launcher.js',
-        '/node_modules/phaser/dist/phaser.min.js',
-        '/node_modules/howler/dist/howler.min.js',
+        new URL('index.html', BASE).pathname,
+        new URL('css/launcher.css', BASE).pathname,
+        new URL('games/princess-starlight/js/launcher.js', BASE).pathname,
+        new URL('lib/phaser.min.js', BASE).pathname,
+        new URL('lib/howler.min.js', BASE).pathname,
       ])
     )
   );

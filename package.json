@@ -3,13 +3,15 @@
   "version": "1.0.0",
   "description": "Kaylee's Game Pack - a collection of games",
   "scripts": {
-    "start": "serve -l 3000",
-    "dev": "serve -l 3000"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "postinstall": "mkdir -p public/lib && cp node_modules/phaser/dist/phaser.min.js public/lib/ && cp node_modules/howler/dist/howler.min.js public/lib/"
   },
   "keywords": [],
   "license": "ISC",
   "devDependencies": {
-    "serve": "^14.2.6"
+    "vite": "^8.0.3"
   },
   "dependencies": {
     "howler": "^2.2.4",

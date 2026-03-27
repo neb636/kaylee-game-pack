@@ -19,13 +19,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build with PR base path
+        run: npx vite build --base /kaylee-game-pack/pr-preview/pr-${{ github.event.number }}/
+
+      - name: Copy packs to dist
+        run: cp -r packs dist/packs
+
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
+          publish_dir: ./dist
           destination_dir: pr-preview/pr-${{ github.event.number }}
           keep_files: true
-          exclude_assets: '.github,node_modules,packs,games-prompts.md,GAMES_ROADMAP.md,CLAUDE.md,.gitignore,package.json,package-lock.json'
 
       - name: Post preview URL to PR
         uses: actions/github-script@v7

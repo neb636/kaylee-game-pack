@@ -25,10 +25,10 @@
     <div id="gameGrid"></div>
   </div>
 
-  <script src="games/princess-starlight/js/launcher.js"></script>
+  <script type="module" src="games/princess-starlight/js/launcher.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.register('sw.js');
     }
   </script>
 </body>
