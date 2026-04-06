@@ -25,8 +25,59 @@
     <div id="gameGrid"></div>
   </div>
 
+  <!-- SPA game overlay — games load here instead of navigating away -->
+  <div id="game-overlay" aria-hidden="true">
+    <iframe id="game-frame" title="Game" allowfullscreen></iframe>
+  </div>
+
   <script type="module" src="games/princess-starlight/js/launcher.js"></script>
-  <script>
+  <script type="module">
+    const overlay = document.getElementById('game-overlay');
+    const frame   = document.getElementById('game-frame');
+
+    function openGame(url) {
+      frame.src = url;
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+      history.pushState({ game: url }, '', '#playing');
+    }
+
+    function closeGame() {
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+      // Clear src after transition so Phaser/audio stops cleanly
+      setTimeout(() => { frame.src = ''; }, 300);
+    }
+
+    // Games dispatch this event via launcher.js
+    document.addEventListener('launch-game', e => openGame(e.detail.url));
+
+    // Browser / OS back gesture
+    window.addEventListener('popstate', e => {
+      if (!e.state?.game) closeGame();
+    });
+
+    // Detect when a game's 🏠 back button navigates the iframe home
+    frame.addEventListener('load', () => {
+      if (!overlay.classList.contains('active')) return;
+      try {
+        const p = frame.contentWindow.location.pathname;
+        const isLauncher =
+          p === '/' ||
+          p === '/index.html' ||
+          /\/kaylee-game-pack\/?$/.test(p) ||
+          /\/kaylee-game-pack\/index\.html$/.test(p);
+        if (isLauncher) {
+          // Pop our pushState so the URL is clean, then close
+          if (history.state?.game) history.back();
+          else closeGame();
+        }
+      } catch (_) {
+        // Cross-origin guard — shouldn't happen on same-origin deploy
+      }
+    });
+
+    // Service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js');
     }
