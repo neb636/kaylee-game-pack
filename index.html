@@ -10,9 +10,9 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Kaylee's Game World ✨</title>
-  <script type="module" crossorigin src="/kaylee-game-pack/assets/main-BFOGSJo2.js"></script>
+  <script type="module" crossorigin src="/kaylee-game-pack/assets/main-BkzWvmTr.js"></script>
   <link rel="modulepreload" crossorigin href="/kaylee-game-pack/assets/modulepreload-polyfill-3xzlJT5O.js">
-  <link rel="stylesheet" crossorigin href="/kaylee-game-pack/assets/main-lgdTQeAX.css">
+  <link rel="stylesheet" crossorigin href="/kaylee-game-pack/assets/main-Ds0HvANf.css">
 </head>
 <body>
   <div id="stars"></div>
@@ -27,10 +27,10 @@
     <div id="gameGrid"></div>
   </div>
 
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
-  </script>
+  <!-- SPA game overlay — games load here instead of navigating away -->
+  <div id="game-overlay" aria-hidden="true">
+    <iframe id="game-frame" title="Game" allowfullscreen></iframe>
+  </div>
+
 </body>
 </html>
