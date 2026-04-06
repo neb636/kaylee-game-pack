@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animal Alphabet Adventure 🐾</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0033;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="/kaylee-game-pack/pr-preview/pr-7/lib/phaser.min.js"></script>
+<script>
+
+const PACK = '../../packs/craftpix-net-248177-scrabble-animals-game-asset-pack/png/';
+
+const ANIMALS = {
+  fox:     { name: 'Fox',     img: 'character1' },
+  horse:   { name: 'Horse',   img: 'character2' },
+  cow:     { name: 'Cow',     img: 'character3' },
+  bear:    { name: 'Bear',    img: 'character4' },
+  raccoon: { name: 'Raccoon', img: 'character5' },
+  beaver:  { name: 'Beaver',  img: 'character6' },
+};
+
+// 10 questions using all 6 animals across letters F, H, C, B, R
+const ALL_QUESTIONS = [
+  { letter: 'F', correct: 'fox',     distractors: ['cow',     'horse'  ] },
+  { letter: 'H', correct: 'horse',   distractors: ['fox',     'cow'    ] },
+  { letter: 'C', correct: 'cow',     distractors: ['fox',     'raccoon'] },
+  { letter: 'B', correct: 'bear',    distractors: ['cow',     'horse'  ] },
+  { letter: 'R', correct: 'raccoon', distractors: ['fox',     'horse'  ] },
+  { letter: 'B', correct: 'beaver',  distractors: ['cow',     'horse'  ] },
+  { letter: 'F', correct: 'fox',     distractors: ['bear',    'raccoon'] },
+  { letter: 'H', correct: 'horse',   distractors: ['bear',    'beaver' ] },
+  { letter: 'C', correct: 'cow',     distractors: ['bear',    'beaver' ] },
+  { letter: 'R', correct: 'raccoon', distractors: ['cow',     'bear'   ] },
+];
+
+// ─── BootScene ────────────────────────────────────────────────────────────────
+class BootScene extends Phaser.Scene {
+  constructor() { super({ key: 'Boot' }); }
+
+  preload() {
+    // Loading UI
+    this.add.rectangle(400, 300, 800, 600, 0x1a0033);
+    this.add.text(400, 240, '🐾 Loading Adventure...', {
+      fontFamily: 'Fredoka One', fontSize: '34px', color: '#ffffff'
+    }).setOrigin(0.5);
+
+    const barBg = this.add.graphics();
+    barBg.fillStyle(0x5c0099).fillRoundedRect(160, 288, 480, 28, 14);
+
+    const bar = this.add.graphics();
+    this.load.on('progress', p => {
+      bar.clear();
+      bar.fillStyle(0xff69b4).fillRoundedRect(160, 288, 480 * p, 28, 14);
+    });
+
+    // Background
+    this.load.image('bg', PACK + 'bg.png');
+
+    // Letter tiles (only the ones we need)
+    ['B', 'C', 'F', 'H', 'R'].forEach(l =>
+      this.load.image('letter_' + l, PACK + 'LETTERS/BIG/' + l + '.png')
+    );
+
+    // Animal characters
+    for (let i = 1; i <= 6; i++)
+      this.load.image('character' + i, PACK + 'character' + i + '.png');
+  }
+
+  create() {
+    this.scene.start('Game');
+  }
+}
+
+// ─── GameScene ───────────────────────────────────────────────────────────────
+class GameScene extends Phaser.Scene {
+  constructor() { super({ key: 'Game' }); }
+
+  create() {
+    this.score     = 0;
+    this.qIndex    = 0;
+    this.questions = Phaser.Utils.Array.Shuffle([...ALL_QUESTIONS]);
+    this.canAnswer = true;
+    this.cards     = [];
+
+    // ── Background ──
+    this.add.image(400, 300, 'bg').setDisplaySize(800, 600).setAlpha(0.18);
+    this.add.rectangle(400, 300, 800, 600, 0x2d0050, 0.85);
+
+    // Decorative top bar
+    this.add.rectangle(400, 44, 800, 88, 0x44006a);
+    this.add.rectangle(400, 88, 800, 3, 0xff69b4);
+
+    // ── Back button ──
+    const backBtn = this.add.text(16, 14, '🏠 Games', {
+      fontFamily: 'Fredoka One', fontSize: '26px',
+      backgroundColor: '#ff69b4',
+      padding: { x: 10, y: 6 },
+      color: '#ffffff'
+    }).setInteractive({ useHandCursor: true });
+    backBtn.on('pointerdown', () => (window.location.href = '../../index.html'));
+    backBtn.on('pointerover', () => backBtn.setAlpha(0.8));
+    backBtn.on('pointerout',  () => backBtn.setAlpha(1.0));
+
+    // ── Progress display ──
+    this.progressText = this.add.text(786, 14, '⭐ 0 / 10', {
+      fontFamily: 'Fredoka One', fontSize: '28px', color: '#ffd700'
+    }).setOrigin(1, 0);
+
+    // ── Question prompt ──
+    this.promptText = this.add.text(400, 112, 'Which animal starts with...', {
+      fontFamily: 'Fredoka One', fontSize: '26px', color: '#e0aaff'
+    }).setOrigin(0.5);
+
+    // ── Letter tile container ──
+    this.letterGroup = this.add.container(400, 232);
+
+    // ── Encouragement text ──
+    this.encourageText = this.add.text(400, 548, '', {
+      fontFamily: 'Fredoka One', fontSize: '30px', color: '#ffd700'
+    }).setOrigin(0.5).setAlpha(0).setDepth(10);
+
+    this.showQuestion();
+  }
+
+  showQuestion() {
+    // Remove old cards
+    this.cards.forEach(c => c.destroy());
+    this.cards = [];
+
+    // Reset letter area
+    this.letterGroup.removeAll(true);
+    this.tweens.killTweensOf(this.letterGroup);
+    this.letterGroup.setScale(1).setY(232);
+
+    const q = this.questions[this.qIndex];
+
+    // Letter tile
+    const tile = this.add.image(0, 0, 'letter_' + q.letter).setScale(1.45);
+    this.letterGroup.add(tile);
+
+    // Gentle float on the tile
+    this.tweens.add({
+      targets: this.letterGroup,
+      y: 224,
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Build shuffled choices
+    const choices = Phaser.Utils.Array.Shuffle([q.correct, ...q.distractors]);
+    const xs = [160, 400, 640];
+
+    choices.forEach((key, i) => {
+      const card = this.buildCard(xs[i], 440, ANIMALS[key], key === q.correct, xs[i]);
+      card.setScale(0).setAlpha(0);
+      this.tweens.add({
+        targets: card,
+        scale: 1, alpha: 1,
+        duration: 360,
+        delay: 80 * i,
+        ease: 'Back.easeOut'
+      });
+      this.cards.push(card);
+    });
+  }
+
+  buildCard(cx, cy, animal, isCorrect, origX) {
+    const card = this.add.container(cx, cy);
+
+    // Shadow
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.22);
+    shadow.fillRoundedRect(-82, -108, 164, 216, 20);
+    shadow.setPosition(5, 7);
+
+    // Card body
+    const bg = this.add.graphics();
+    this.drawCardBg(bg, 0xffffff, 0.96, 0xff69b4, 4);
+
+    // Animal image
+    const img = this.add.image(0, -22, animal.img).setDisplaySize(138, 138);
+
+    // Name pill
+    const pillBg = this.add.graphics();
+    pillBg.fillStyle(0xf0d6ff).fillRoundedRect(-58, 68, 116, 34, 10);
+    const nameLabel = this.add.text(0, 85, animal.name, {
+      fontFamily: 'Fredoka One', fontSize: '22px', color: '#6600cc'
+    }).setOrigin(0.5);
+
+    card.add([shadow, bg, img, pillBg, nameLabel]);
+    card.setSize(164, 216);
+    card.setInteractive(
+      new Phaser.Geom.Rectangle(-82, -108, 164, 216),
+      Phaser.Geom.Rectangle.Contains
+    );
+
+    card.on('pointerover', () => {
+      if (this.canAnswer)
+        this.tweens.add({ targets: card, scaleX: 1.08, scaleY: 1.08, duration: 110 });
+    });
+    card.on('pointerout', () => {
+      if (this.canAnswer)
+        this.tweens.add({ targets: card, scaleX: 1, scaleY: 1, duration: 110 });
+    });
+    card.on('pointerdown', () => {
+      if (!this.canAnswer) return;
+      if (isCorrect) this.onCorrect(card, bg);
+      else           this.onWrong(card, bg, origX);
+    });
+
+    return card;
+  }
+
+  drawCardBg(gfx, fill, alpha, stroke, strokeWidth) {
+    gfx.clear();
+    gfx.fillStyle(fill, alpha);
+    gfx.fillRoundedRect(-82, -108, 164, 216, 20);
+    gfx.lineStyle(strokeWidth, stroke);
+    gfx.strokeRoundedRect(-82, -108, 164, 216, 20);
+  }
+
+  onCorrect(card, bg) {
+    this.canAnswer = false;
+
+    // Green highlight
+    this.drawCardBg(bg, 0x90ee90, 0.97, 0x22bb22, 5);
+
+    // Pop bounce
+    this.tweens.add({
+      targets: card, scaleX: 1.22, scaleY: 1.22,
+      duration: 220, yoyo: true, ease: 'Back.easeOut'
+    });
+
+    this.createStarBurst(card.x, card.y);
+    this.playTone([523, 659, 784, 1047]);
+
+    const praise = ['Great job! ⭐', 'Amazing! 🌟', 'You rock! 💫', 'Brilliant! ✨', 'Wonderful! 🎉'];
+    this.showEncouragement(Phaser.Utils.Array.GetRandom(praise));
+
+    this.score++;
+    this.progressText.setText('⭐ ' + this.score + ' / 10');
+
+    this.time.delayedCall(1400, () => {
+      this.qIndex++;
+      if (this.qIndex >= 10) {
+        this.scene.start('Win', { score: this.score });
+      } else {
+        this.canAnswer = true;
+        this.showQuestion();
+      }
+    });
+  }
+
+  onWrong(card, bg, origX) {
+    this.canAnswer = false;
+
+    // Red flash
+    this.drawCardBg(bg, 0xffe0e0, 0.97, 0xff4444, 5);
+    this.playTone([330, 294]);
+    this.showEncouragement('Try again! 💪');
+
+    // Shake then restore
+    this.tweens.add({
+      targets: card,
+      x: origX + 13,
+      duration: 55,
+      yoyo: true,
+      repeat: 5,
+      ease: 'Linear',
+      onComplete: () => {
+        card.setX(origX);
+        this.drawCardBg(bg, 0xffffff, 0.96, 0xff69b4, 4);
+        this.canAnswer = true;
+      }
+    });
+  }
+
+  createStarBurst(x, y) {
+    const emojis = ['⭐', '🌟', '✨', '💫'];
+    for (let i = 0; i < 14; i++) {
+      const angle = (i / 14) * Math.PI * 2;
+      const dist  = 90 + Math.random() * 70;
+      const txt   = this.add.text(x, y, Phaser.Utils.Array.GetRandom(emojis), {
+        fontSize: (18 + Math.random() * 14) + 'px'
+      }).setOrigin(0.5).setDepth(5);
+
+      this.tweens.add({
+        targets: txt,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0,
+        scale: 0.3,
+        duration: 680 + Math.random() * 280,
+        ease: 'Power2',
+        onComplete: () => txt.destroy()
+      });
+    }
+  }
+
+  showEncouragement(msg) {
+    this.tweens.killTweensOf(this.encourageText);
+    this.encourageText.setText(msg).setAlpha(1).setY(548);
+    this.tweens.add({
+      targets: this.encourageText,
+      y: 525,
+      alpha: 0,
+      delay: 500,
+      duration: 900,
+      ease: 'Power2'
+    });
+  }
+
+  playTone(freqs) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      freqs.forEach((freq, i) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.13;
+        gain.gain.setValueAtTime(0.22, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+        osc.start(t);
+        osc.stop(t + 0.38);
+      });
+    } catch (_) {}
+  }
+}
+
+// ─── WinScene ─────────────────────────────────────────────────────────────────
+class WinScene extends Phaser.Scene {
+  constructor() { super({ key: 'Win' }); }
+
+  create() {
+    this.add.rectangle(400, 300, 800, 600, 0x1a0033);
+    this.add.rectangle(400, 300, 800, 600, 0x2d0050, 0.9);
+
+    this.spawnConfetti();
+
+    // Trophy
+    this.add.text(400, 100, '🏆', { fontSize: '88px' }).setOrigin(0.5);
+
+    // Main text
+    this.add.text(400, 215, "You're a star,", {
+      fontFamily: 'Fredoka One', fontSize: '50px', color: '#ffd700'
+    }).setOrigin(0.5);
+
+    const kayleeText = this.add.text(400, 285, 'Kaylee! ⭐', {
+      fontFamily: 'Fredoka One', fontSize: '60px', color: '#ff69b4'
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: kayleeText, scaleX: 1.07, scaleY: 1.07,
+      duration: 750, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    this.add.text(400, 368, 'You know your Animal Alphabet! 🐾', {
+      fontFamily: 'Fredoka One', fontSize: '25px', color: '#e0aaff'
+    }).setOrigin(0.5);
+
+    // Buttons
+    const playBtn = this.add.text(248, 460, '🎮 Play Again', {
+      fontFamily: 'Fredoka One', fontSize: '29px',
+      backgroundColor: '#ff69b4', padding: { x: 16, y: 10 }, color: '#fff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    playBtn.on('pointerdown', () => this.scene.start('Game'));
+    playBtn.on('pointerover', () => playBtn.setAlpha(0.82));
+    playBtn.on('pointerout',  () => playBtn.setAlpha(1));
+
+    const homeBtn = this.add.text(556, 460, '🏠 Games', {
+      fontFamily: 'Fredoka One', fontSize: '29px',
+      backgroundColor: '#7b2fff', padding: { x: 16, y: 10 }, color: '#fff'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    homeBtn.on('pointerdown', () => (window.location.href = '../../index.html'));
+    homeBtn.on('pointerover', () => homeBtn.setAlpha(0.82));
+    homeBtn.on('pointerout',  () => homeBtn.setAlpha(1));
+
+    // Back button (top-left)
+    const backBtn = this.add.text(16, 14, '🏠 Games', {
+      fontFamily: 'Fredoka One', fontSize: '26px',
+      backgroundColor: '#ff69b4', padding: { x: 10, y: 6 }, color: '#fff'
+    }).setInteractive({ useHandCursor: true });
+    backBtn.on('pointerdown', () => (window.location.href = '../../index.html'));
+
+    // Win melody
+    this.time.delayedCall(150, () => this.playWinMelody());
+  }
+
+  spawnConfetti() {
+    const emojis = ['⭐', '🌟', '✨', '💫', '🎉', '🎊', '🌈'];
+    for (let i = 0; i < 42; i++) {
+      const startX = Phaser.Math.Between(20, 780);
+      const piece  = this.add.text(
+        startX,
+        Phaser.Math.Between(-60, -5),
+        Phaser.Utils.Array.GetRandom(emojis),
+        { fontSize: Phaser.Math.Between(16, 32) + 'px' }
+      ).setOrigin(0.5);
+
+      this.tweens.add({
+        targets: piece,
+        y: 660,
+        x: startX + Phaser.Math.Between(-90, 90),
+        rotation: Phaser.Math.FloatBetween(-2.5, 2.5),
+        duration: Phaser.Math.Between(2600, 5200),
+        delay: Phaser.Math.Between(0, 2400),
+        repeat: -1,
+        onRepeat: (_t, target) => {
+          target.setX(Phaser.Math.Between(20, 780));
+          target.setY(Phaser.Math.Between(-60, -5));
+        }
+      });
+    }
+  }
+
+  playWinMelody() {
+    try {
+      const ctx    = new (window.AudioContext || window.webkitAudioContext)();
+      const notes  = [523, 587, 659, 698, 784, 880, 1047];
+      notes.forEach((freq, i) => {
+        const osc  = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.16;
+        gain.gain.setValueAtTime(0.28, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+        osc.start(t);
+        osc.stop(t + 0.55);
+      });
+    } catch (_) {}
+  }
+}
+
+// ─── Launch ───────────────────────────────────────────────────────────────────
+new Phaser.Game({
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  backgroundColor: '#1a0033',
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  scene: [BootScene, GameScene, WinScene]
+});
+
+</script>
+</body>
+</html>

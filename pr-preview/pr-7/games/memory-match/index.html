@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animal Friends Memory Match</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a0533;
+      display: flex; justify-content: center; align-items: center;
+      height: 100vh; overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+<script src="/kaylee-game-pack/pr-preview/pr-7/lib/phaser.min.js"></script>
+<script>
+
+// ─── Animal definitions ───────────────────────────────────────────
+// Each sprite sheet is a 4×4 grid of frames (4 directions × 4 frames).
+// frameWidth / frameHeight derived from: 192÷4=48, 256÷4=64 (standard)
+//   Foal/Horse are 384×512 so 96×128 per frame.
+//   Rabbit Cub is 96×128 so 24×32 per frame.
+
+const PACK = '../../packs/top-down-cute-farm-animals-pixel-sprite/PNG/Without_shadow/';
+
+const ANIMALS = [
+  { key: 'foal',      file: 'Foal_without_shadow.png',       fw: 96, fh: 128, name: 'Foal'     },
+  { key: 'goat',      file: 'Goat_without_shadow.png',       fw: 48, fh: 64,  name: 'Goat'     },
+  { key: 'goatling',  file: 'Goatling_without_shadow.png',   fw: 48, fh: 64,  name: 'Goatling' },
+  { key: 'goose',     file: 'Goose_without_shadow.png',      fw: 48, fh: 64,  name: 'Goose'    },
+  { key: 'gosling',   file: 'Gosling_without_shadow.png',    fw: 48, fh: 64,  name: 'Gosling'  },
+  { key: 'horse',     file: 'Horse_without_shadow.png',      fw: 96, fh: 128, name: 'Horse'    },
+  { key: 'rabbit',    file: 'Rabbit_without_shadow.png',     fw: 48, fh: 64,  name: 'Rabbit'   },
+  { key: 'rabbitcub', file: 'Rabbit_cub_without_shadow.png', fw: 24, fh: 32,  name: 'Bunny'    },
+];
+
+// ─── Card grid layout ─────────────────────────────────────────────
+const CARD  = 120;  // card width & height (px)
+const GAP   = 12;   // gap between cards
+const COLS  = 4;
+const ROWS  = 4;
+const GRID_W = COLS * CARD + (COLS - 1) * GAP;  // 516
+const GRID_X = (800 - GRID_W) / 2;              // 142 (centered)
+const GRID_Y = 62;                              // top of grid (below 60px header)
+
+// ─── Helper: draw a 5-pointed star ───────────────────────────────
+function drawStar(gfx, x, y, nPts, inner, outer) {
+  const pts = [];
+  for (let i = 0; i < nPts * 2; i++) {
+    const angle = (Math.PI / nPts) * i - Math.PI / 2;
+    const r = i % 2 === 0 ? outer : inner;
+    pts.push(new Phaser.Geom.Point(x + Math.cos(angle) * r, y + Math.sin(angle) * r));
+  }
+  gfx.fillPoints(pts, true, true);
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Boot Scene — load assets & create animations
+// ─────────────────────────────────────────────────────────────────
+class BootScene extends Phaser.Scene {
+  constructor() { super({ key: 'Boot' }); }
+
+  preload() {
+    // Loading bar
+    this.add.rectangle(400, 300, 800, 600, 0x1a0533);
+
+    this.add.text(400, 240, '🐾 Loading Animals...', {
+      fontFamily: 'Fredoka One', fontSize: '30px', color: '#fff'
+    }).setOrigin(0.5);
+
+    const barBg = this.add.graphics();
+    barBg.fillStyle(0x4a1070);
+    barBg.fillRoundedRect(200, 272, 400, 28, 14);
+
+    const bar = this.add.graphics();
+    this.load.on('progress', (v) => {
+      bar.clear();
+      bar.fillStyle(0xff69b4);
+      bar.fillRoundedRect(200, 272, 400 * v, 28, 14);
+    });
+
+    ANIMALS.forEach(a => {
+      this.load.spritesheet(a.key, PACK + a.file, {
+        frameWidth: a.fw, frameHeight: a.fh
+      });
+    });
+  }
+
+  create() {
+    // Create a gentle idle animation (first 4 frames = front-facing direction)
+    ANIMALS.forEach(a => {
+      const animKey = a.key + '_idle';
+      if (!this.anims.exists(animKey)) {
+        this.anims.create({
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(a.key, { start: 0, end: 3 }),
+          frameRate: 4,
+          repeat: -1
+        });
+      }
+    });
+
+    this.scene.start('Game');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Game Scene
+// ─────────────────────────────────────────────────────────────────
+class GameScene extends Phaser.Scene {
+  constructor() { super({ key: 'Game' }); }
+
+  create() {
+    const W = 800, H = 600;
+
+    // ── Background ────────────────────────────────────────────────
+    this.add.rectangle(W / 2, H / 2, W, H, 0x2d1b4e);
+
+    // Soft glow blobs for depth
+    const g = this.add.graphics();
+    [
+      [120, 120, 90,  0x3d1080, 0.35],
+      [700, 500, 70,  0x501090, 0.35],
+      [660, 90,  55,  0x200868, 0.30],
+      [140, 530, 80,  0x300a70, 0.30],
+    ].forEach(([x, y, r, c, a]) => { g.fillStyle(c, a); g.fillCircle(x, y, r); });
+
+    // ── Header bar ────────────────────────────────────────────────
+    this.add.rectangle(W / 2, 30, W, 60, 0x0e0026, 0.88);
+
+    // Flip counter (right side of back button)
+    this.flipCount  = 0;
+    this.pairsFound = 0;
+
+    this.flipText = this.add.text(W / 2 - 50, 14, '🔄 Flips: 0', {
+      fontFamily: 'Fredoka One', fontSize: '25px', color: '#ddd'
+    }).setOrigin(0.5, 0);
+
+    this.pairText = this.add.text(W - 20, 14, '⭐ 0 / 8 pairs', {
+      fontFamily: 'Fredoka One', fontSize: '25px', color: '#FFD700'
+    }).setOrigin(1, 0);
+
+    // ── Game state ────────────────────────────────────────────────
+    this.cards   = [];
+    this.flipped = [];   // at most 2 face-up unmatched cards
+    this.canFlip = true; // gate during animations
+
+    // ── Card grid ─────────────────────────────────────────────────
+    const deck = Phaser.Utils.Array.Shuffle([
+      ...ANIMALS.map(a => a.key),
+      ...ANIMALS.map(a => a.key),
+    ]);
+
+    deck.forEach((animalKey, i) => {
+      const animal = ANIMALS.find(a => a.key === animalKey);
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cx  = GRID_X + col * (CARD + GAP) + CARD / 2;
+      const cy  = GRID_Y + row * (CARD + GAP) + CARD / 2;
+      this.cards.push(this.makeCard(cx, cy, animal));
+    });
+
+    // ── Back button ───────────────────────────────────────────────
+    this.makeBackButton(60, 30);
+  }
+
+  // ── Build one card ─────────────────────────────────────────────
+
+  makeCard(cx, cy, animal) {
+    const hw = CARD / 2, hh = CARD / 2;
+    const c = this.add.container(cx, cy);
+
+    // Card back — purple with star motif
+    const back = this.add.graphics();
+    back.fillStyle(0x7b2d8b);
+    back.fillRoundedRect(-hw, -hh, CARD, CARD, 14);
+    back.lineStyle(3, 0xffaaff);
+    back.strokeRoundedRect(-hw, -hh, CARD, CARD, 14);
+    back.fillStyle(0xffccff, 0.65);
+    drawStar(back,   0,   0, 5, 10, 24);  // centre star
+    back.fillStyle(0xff88ee, 0.45);
+    drawStar(back, -30, -30, 5,  4, 10);
+    drawStar(back,  30, -30, 5,  4, 10);
+    drawStar(back, -30,  30, 5,  4, 10);
+    drawStar(back,  30,  30, 5,  4, 10);
+
+    // Card front — pale pink background
+    const front = this.add.graphics();
+    front.fillStyle(0xfff4ff);
+    front.fillRoundedRect(-hw, -hh, CARD, CARD, 14);
+    front.lineStyle(3, 0xdd55dd);
+    front.strokeRoundedRect(-hw, -hh, CARD, CARD, 14);
+    front.setVisible(false);
+
+    // Animal sprite — scale to fill ~88×88 area, centred slightly above text
+    const maxPx = 88;
+    const scale = Math.min(maxPx / animal.fw, maxPx / animal.fh);
+    const spr = this.add.sprite(0, -10, animal.key, 1);
+    spr.setScale(scale);
+    spr.setVisible(false);
+
+    // Animal name label at bottom of card
+    const lbl = this.add.text(0, hh - 15, animal.name, {
+      fontFamily: 'Fredoka One', fontSize: '15px', color: '#882288'
+    }).setOrigin(0.5, 0.5);
+    lbl.setVisible(false);
+
+    c.add([back, front, spr, lbl]);
+    c.setSize(CARD, CARD);
+    c.setInteractive({ cursor: 'pointer' });
+
+    const card = {
+      container: c, back, front, spr, lbl, animal,
+      isFlipped: false, isMatched: false
+    };
+
+    c.on('pointerover', () => {
+      if (!card.isFlipped && !card.isMatched && this.canFlip && this.flipped.length < 2) {
+        this.tweens.add({ targets: c, scaleX: 1.07, scaleY: 1.07, duration: 80, ease: 'Sine.Out' });
+      }
+    });
+    c.on('pointerout', () => {
+      if (!card.isMatched) {
+        this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, duration: 80, ease: 'Sine.Out' });
+      }
+    });
+    c.on('pointerdown', () => this.onCardClick(card));
+
+    return card;
+  }
+
+  // ── Click handler ──────────────────────────────────────────────
+
+  onCardClick(card) {
+    if (!this.canFlip || card.isFlipped || card.isMatched || this.flipped.length >= 2) return;
+
+    this.flipCount++;
+    this.flipText.setText('🔄 Flips: ' + this.flipCount);
+
+    this.flipTo(card, true, () => {
+      this.flipped.push(card);
+      if (this.flipped.length === 2) {
+        this.canFlip = false;
+        this.time.delayedCall(750, () => this.checkMatch());
+      }
+    });
+  }
+
+  // ── Flip animation (scaleX 1→0 swap→1) ────────────────────────
+
+  flipTo(card, faceUp, onDone) {
+    const c = card.container;
+    this.tweens.add({
+      targets: c, scaleX: 0, duration: 130, ease: 'Sine.In',
+      onComplete: () => {
+        if (faceUp) {
+          card.back.setVisible(false);
+          card.front.setVisible(true);
+          card.spr.setVisible(true);
+          card.lbl.setVisible(true);
+          card.spr.play(card.animal.key + '_idle');
+          card.isFlipped = true;
+        } else {
+          card.back.setVisible(true);
+          card.front.setVisible(false);
+          card.spr.setVisible(false);
+          card.lbl.setVisible(false);
+          card.spr.stop();
+          card.isFlipped = false;
+        }
+        this.tweens.add({
+          targets: c, scaleX: 1, duration: 130, ease: 'Sine.Out',
+          onComplete: () => { if (onDone) onDone(); }
+        });
+      }
+    });
+  }
+
+  // ── Match check ────────────────────────────────────────────────
+
+  checkMatch() {
+    const [a, b] = this.flipped;
+
+    if (a.animal.key === b.animal.key) {
+      // ✅ Match!
+      a.isMatched = b.isMatched = true;
+      this.pairsFound++;
+      this.pairText.setText('⭐ ' + this.pairsFound + ' / 8 pairs');
+
+      [a, b].forEach(card => {
+        card.spr.setTint(0xffe066);          // golden shimmer
+        card.back.setAlpha(0);               // keep front locked open
+        this.tweens.add({
+          targets: card.container,
+          y: card.container.y - 14, duration: 140,
+          yoyo: true, ease: 'Sine.Out'
+        });
+      });
+
+      this.burst(a.container.x, a.container.y);
+      this.burst(b.container.x, b.container.y);
+
+      this.flipped  = [];
+      this.canFlip  = true;
+
+      if (this.pairsFound === 8) {
+        this.time.delayedCall(800, () =>
+          this.scene.start('Win', { flips: this.flipCount })
+        );
+      }
+
+    } else {
+      // ❌ No match — wobble both, then flip back
+      let wobbleDone = 0;
+      [a, b].forEach(card => {
+        const origX = card.container.x;
+        this.tweens.add({
+          targets: card.container,
+          x: origX + 10,
+          duration: 70, yoyo: true, repeat: 2, ease: 'Sine.InOut',
+          onComplete: () => {
+            card.container.x = origX;
+            wobbleDone++;
+            if (wobbleDone === 2) {
+              let flipDone = 0;
+              [a, b].forEach(c => {
+                this.flipTo(c, false, () => {
+                  flipDone++;
+                  if (flipDone === 2) {
+                    this.flipped = [];
+                    this.canFlip = true;
+                  }
+                });
+              });
+            }
+          }
+        });
+      });
+    }
+  }
+
+  // ── Sparkle burst ──────────────────────────────────────────────
+
+  burst(x, y) {
+    const COLORS = [0xFFD700, 0xFF69B4, 0x00DDDD, 0xFF7755, 0xCC88FF, 0x88FF88];
+    for (let i = 0; i < 14; i++) {
+      const angle = (i / 14) * Math.PI * 2;
+      const dist  = Phaser.Math.Between(45, 85);
+      const p = this.add.graphics();
+      p.fillStyle(COLORS[i % COLORS.length]);
+      drawStar(p, 0, 0, 5, 4, 10);
+      p.setPosition(x, y);
+      this.tweens.add({
+        targets: p,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0, scaleX: 0, scaleY: 0,
+        duration: 600, ease: 'Sine.Out',
+        onComplete: () => p.destroy()
+      });
+    }
+  }
+
+  // ── Back button ────────────────────────────────────────────────
+
+  makeBackButton(bx, by) {
+    const c   = this.add.container(bx, by);
+    const bg  = this.add.graphics();
+    bg.fillStyle(0xcc3399);
+    bg.fillRoundedRect(-48, -19, 96, 38, 19);
+    const txt = this.add.text(0, 0, '🏠 Games', {
+      fontFamily: 'Fredoka One', fontSize: '18px', color: '#fff'
+    }).setOrigin(0.5);
+    c.add([bg, txt]);
+    c.setSize(96, 38).setInteractive({ cursor: 'pointer' });
+    c.on('pointerdown', () => { window.location.href = '../../index.html'; });
+    c.on('pointerover', () => bg.setAlpha(0.8));
+    c.on('pointerout',  () => bg.setAlpha(1));
+    c.setDepth(10);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Win Scene
+// ─────────────────────────────────────────────────────────────────
+class WinScene extends Phaser.Scene {
+  constructor() { super({ key: 'Win' }); }
+
+  init(data) { this.flipCount = data.flips || 0; }
+
+  create() {
+    const W = 800, H = 600;
+
+    this.add.rectangle(W / 2, H / 2, W, H, 0x1a0533);
+    this.rainConfetti();
+
+    // ── Win panel ─────────────────────────────────────────────────
+    const panel = this.add.graphics();
+    panel.fillStyle(0x7b2d8b, 0.96);
+    panel.fillRoundedRect(W/2 - 295, H/2 - 148, 590, 296, 28);
+    panel.lineStyle(5, 0xffaaff);
+    panel.strokeRoundedRect(W/2 - 295, H/2 - 148, 590, 296, 28);
+
+    this.add.text(W / 2, H/2 - 96, '🌟 Amazing Memory! 🌟', {
+      fontFamily: 'Fredoka One', fontSize: '40px', color: '#FFD700'
+    }).setOrigin(0.5);
+
+    this.add.text(W / 2, H/2 - 32, 'You matched all the animals,', {
+      fontFamily: 'Fredoka One', fontSize: '28px', color: '#ffffff'
+    }).setOrigin(0.5);
+
+    this.add.text(W / 2, H/2 + 16, 'Kaylee! 🐾', {
+      fontFamily: 'Fredoka One', fontSize: '38px', color: '#ffaaff'
+    }).setOrigin(0.5);
+
+    this.add.text(W / 2, H/2 + 68, `You did it in ${this.flipCount} flips!`, {
+      fontFamily: 'Fredoka One', fontSize: '22px', color: '#aaddff'
+    }).setOrigin(0.5);
+
+    // ── Play again button ─────────────────────────────────────────
+    const btnBg = this.add.graphics();
+    btnBg.fillStyle(0xff44aa);
+    btnBg.fillRoundedRect(W/2 - 115, H/2 + 112, 230, 56, 28);
+    this.add.text(W / 2, H/2 + 140, '🔄 Play Again', {
+      fontFamily: 'Fredoka One', fontSize: '28px', color: '#fff'
+    }).setOrigin(0.5);
+
+    const zone = this.add.zone(W/2, H/2 + 140, 230, 56).setInteractive({ cursor: 'pointer' });
+    zone.on('pointerdown', () => this.scene.start('Game'));
+    zone.on('pointerover', () => btnBg.setAlpha(0.8));
+    zone.on('pointerout',  () => btnBg.setAlpha(1));
+
+    // ── Back button ───────────────────────────────────────────────
+    const bc  = this.add.container(65, 35);
+    const bbg = this.add.graphics();
+    bbg.fillStyle(0xcc3399);
+    bbg.fillRoundedRect(-55, -22, 110, 44, 22);
+    const btxt = this.add.text(0, 0, '🏠 Games', {
+      fontFamily: 'Fredoka One', fontSize: '20px', color: '#fff'
+    }).setOrigin(0.5);
+    bc.add([bbg, btxt]);
+    bc.setSize(110, 44).setInteractive({ cursor: 'pointer' });
+    bc.on('pointerdown', () => { window.location.href = '../../index.html'; });
+    bc.on('pointerover', () => bbg.setAlpha(0.8));
+    bc.on('pointerout',  () => bbg.setAlpha(1));
+    bc.setDepth(10);
+  }
+
+  // ── Falling confetti ──────────────────────────────────────────
+
+  rainConfetti() {
+    const W = 800, H = 600;
+    const COLORS = [0xFFD700, 0xFF69B4, 0xFF7755, 0x00DDDD, 0xAA77FF, 0x99EE99, 0xFFB6C1];
+
+    const spawn = () => {
+      const x = Phaser.Math.Between(20, W - 20);
+      const col = COLORS[Phaser.Math.Between(0, COLORS.length - 1)];
+      const p = this.add.graphics();
+      p.fillStyle(col);
+      Math.random() > 0.45
+        ? p.fillRect(-5, -5, 10, 10)
+        : p.fillTriangle(-6, 6, 6, 6, 0, -7);
+      p.setPosition(x, -15).setRotation(Math.random() * Math.PI);
+      this.tweens.add({
+        targets: p,
+        y: H + 20,
+        x: x + Phaser.Math.Between(-100, 100),
+        rotation: Math.random() * 10,
+        duration: Phaser.Math.Between(2200, 4200),
+        ease: 'Linear',
+        onComplete: () => p.destroy()
+      });
+    };
+
+    // Burst at start, then steady drizzle
+    for (let i = 0; i < 45; i++) this.time.delayedCall(i * 55, spawn);
+    this.time.addEvent({ delay: 180, repeat: 70, callback: spawn });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Phaser config
+// ─────────────────────────────────────────────────────────────────
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  backgroundColor: '#1a0533',
+  pixelArt: true,
+  scene: [BootScene, GameScene, WinScene],
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  }
+};
+
+new Phaser.Game(config);
+</script>
+</body>
+</html>
