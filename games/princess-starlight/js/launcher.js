@@ -135,7 +135,9 @@ function createTile(game) {
   `;
 
   if (game.available) {
-    const launch = () => { window.location.href = game.url; };
+    const launch = () => {
+      document.dispatchEvent(new CustomEvent('launch-game', { detail: { url: game.url } }));
+    };
     tile.addEventListener('click', launch);
     tile.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') launch(); });
   }
